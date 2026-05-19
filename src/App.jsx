@@ -895,10 +895,10 @@ export default function ZorimCareApp() {
 
               <div className="space-y-5">
                 {[
-                  { icon: "📞", label: "Phone / WhatsApp", value: "0800 ZORIM CARE", sub: "Mon–Sat 7am–9pm" },
-                  { icon: "📧", label: "Email", value: "care@zorimcare.ng", sub: "We respond within 2 hours" },
-                  { icon: "📍", label: "Head Office", value: "Victoria Island, Lagos", sub: "Serving Lagos, Abuja, PH & more" },
-                  { icon: "🚨", label: "Emergency Line", value: "0700 111 9999", sub: "24/7 for existing patients" },
+                  { icon: "📞", label: "Phone / WhatsApp", value: "0810 163 0202", sub: "Mon–Sat 7am–9pm" },
+                  { icon: "📧", label: "Email", value: "zorimcare@gmail.com", sub: "We respond within 2 hours" },
+                  { icon: "📍", label: "Head Office", value: "Lokogoma, Abuja", sub: "Serving Lagos, Abuja, PH & more" },
+                  { icon: "🚨", label: "Emergency Line", value: "0704 339 7245", sub: "24/7 for existing patients" },
                 ].map(item => (
                   <div key={item.label} className={`flex gap-4 p-5 rounded-2xl ${theme.card} border`}>
                     <div className="text-2xl">{item.icon}</div>

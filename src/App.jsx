@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import emailjs from "@emailjs/browser";
 
 // ─── Navigation Links ───────────────────────────────────────────────────────
 const NAV_LINKS = ["Services", "Telehealth", "Home Care", "Testimonials", "Contact"];
@@ -369,10 +370,49 @@ export default function ZorimCareApp() {
     setMenuOpen(false);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
+
+    // Validation: require name and phone at minimum
+    if (!formData.name || !formData.phone) {
+      alert("Please enter at least your full name and phone number.");
+      return;
+    }
+
+    try {
+      // 1. Send email to zorimcare@gmail.com via EmailJS
+      await emailjs.send(
+        "service_9i53swh",
+        "template_51nvbp3",
+        {
+          patient_name:    formData.name,
+          patient_phone:   formData.phone,
+          patient_email:   formData.email   || "Not provided",
+          patient_city:    formData.city    || "Not specified",
+          patient_service: formData.service || "Not specified",
+          patient_needs:   formData.message || "Not provided",
+        },
+        "FI2aysWtLvEwBH-pt"
+      );
+    } catch (err) {
+      console.error("EmailJS error:", err);
+      // Don't block the user — still open WhatsApp below
+    }
+
+    // 2. Open WhatsApp with pre-filled message to 0810 163 0202
+    const waText =
+      "%F0%9F%8F%A5 *New Zorim Care Enquiry*%0A%0A" +
+      "%F0%9F%91%A4 *Name:* "    + formData.name                    + "%0A" +
+      "%F0%9F%93%9E *Phone:* "   + formData.phone                   + "%0A" +
+      "%F0%9F%93%A7 *Email:* "   + (formData.email   || "Not provided")   + "%0A" +
+      "%F0%9F%93%8D *City:* "    + (formData.city    || "Not specified")   + "%0A" +
+      "%F0%9F%A9%BA *Service:* " + (formData.service || "Not specified")   + "%0A" +
+      "%F0%9F%93%9D *Needs:* "   + (formData.message || "Not provided");
+    window.open("https://wa.me/2348101630202?text=" + waText, "_blank");
+
+    // 3. Show success state and reset form
     setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
+    setTimeout(() => setSubmitted(false), 5000);
     setFormData({ name: "", email: "", phone: "", message: "", service: "", city: "" });
   };
 

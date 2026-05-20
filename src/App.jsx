@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import emailjs from "@emailjs/browser";
 
 // ─── Navigation Links ───────────────────────────────────────────────────────
-const NAV_LINKS = ["Services", "Telehealth", "Home Care", "Testimonials", "Contact"];
+const NAV_LINKS = ["Services", "Telehealth", "Home Care", "Testimonials", "Contact", "Health Tools"];
 
 // ─── Services Data (Nigerian context) ───────────────────────────────────────
 const SERVICES = [
@@ -135,6 +135,341 @@ function StarRating({ count }) {
   );
 }
 
+
+// ─── BMI Calculator Modal ─────────────────────────────────────────────────────
+function BMIModal({ onClose, dark }) {
+  const [unit, setUnit] = useState("metric");
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [heightFt, setHeightFt] = useState("");
+  const [heightIn, setHeightIn] = useState("");
+  const [bmi, setBmi] = useState(null);
+
+  const theme = {
+    card: dark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200",
+    text: dark ? "text-slate-100" : "text-slate-800",
+    muted: dark ? "text-slate-400" : "text-slate-500",
+    input: dark ? "bg-slate-800 border-slate-600 text-white placeholder-slate-500" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400",
+  };
+
+  const calcBMI = () => {
+    let b;
+    if (unit === "metric") {
+      const h = parseFloat(height) / 100;
+      const w = parseFloat(weight);
+      if (!h || !w) return;
+      b = w / (h * h);
+    } else {
+      const totalIn = (parseFloat(heightFt) || 0) * 12 + (parseFloat(heightIn) || 0);
+      const w = parseFloat(weight);
+      if (!totalIn || !w) return;
+      b = (w / (totalIn * totalIn)) * 703;
+    }
+    setBmi(Math.round(b * 10) / 10);
+  };
+
+  const getCategory = (b) => {
+    if (b < 18.5) return { label: "Underweight", color: "text-blue-500", bg: "bg-blue-50", advice: "You may be underweight. Consider speaking with a doctor or nutritionist about a healthy diet plan." };
+    if (b < 25)   return { label: "Normal weight", color: "text-green-600", bg: "bg-green-50", advice: "Your BMI is in the healthy range. Maintain a balanced diet and regular physical activity." };
+    if (b < 30)   return { label: "Overweight", color: "text-amber-500", bg: "bg-amber-50", advice: "You are slightly above the healthy range. A doctor can advise on diet and exercise adjustments." };
+    if (b < 35)   return { label: "Obese (Class I)", color: "text-orange-600", bg: "bg-orange-50", advice: "Obesity increases risk of hypertension, diabetes, and heart disease. Please consult a doctor." };
+    if (b < 40)   return { label: "Obese (Class II)", color: "text-red-500", bg: "bg-red-50", advice: "Significant health risks present. Medical supervision is strongly recommended." };
+    return         { label: "Obese (Class III)", color: "text-red-700", bg: "bg-red-50", advice: "Severe obesity. Please seek medical advice promptly." };
+  };
+
+  const pct = bmi ? Math.min(Math.max(((bmi - 10) / 40) * 100, 0), 100) : 0;
+  const cat = bmi ? getCategory(bmi) : null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}>
+      <div className={`${theme.card} border rounded-3xl w-full max-w-md shadow-2xl`}>
+        <div className="p-7">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className={`text-2xl font-bold ${theme.text}`} style={{ fontFamily: "Cormorant Garamond, serif" }}>BMI Calculator</h3>
+              <p className={`${theme.muted} text-sm mt-0.5`}>Body Mass Index — a general health screening tool</p>
+            </div>
+            <button onClick={onClose} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"} hover:scale-110 transition-transform text-lg`}>✕</button>
+          </div>
+
+          {/* Unit toggle */}
+          <div className={`flex rounded-xl overflow-hidden border ${dark ? "border-slate-700" : "border-slate-200"} mb-5`}>
+            {["metric", "imperial"].map(u => (
+              <button key={u} onClick={() => { setUnit(u); setBmi(null); }}
+                className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${unit === u ? "bg-green-700 text-white" : dark ? "bg-slate-800 text-slate-400" : "bg-white text-slate-500"}`}>
+                {u === "metric" ? "Metric (cm / kg)" : "Imperial (ft / lbs)"}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-4 mb-5">
+            {unit === "metric" ? (
+              <div>
+                <label className={`text-xs font-semibold ${theme.muted} block mb-1.5 uppercase tracking-wider`}>Height (cm)</label>
+                <input type="number" value={height} onChange={e => setHeight(e.target.value)} placeholder="e.g. 170"
+                  className={`w-full px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-green-500 transition-colors`} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs font-semibold ${theme.muted} block mb-1.5 uppercase tracking-wider`}>Feet</label>
+                  <input type="number" value={heightFt} onChange={e => setHeightFt(e.target.value)} placeholder="5"
+                    className={`w-full px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-green-500 transition-colors`} />
+                </div>
+                <div>
+                  <label className={`text-xs font-semibold ${theme.muted} block mb-1.5 uppercase tracking-wider`}>Inches</label>
+                  <input type="number" value={heightIn} onChange={e => setHeightIn(e.target.value)} placeholder="7"
+                    className={`w-full px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-green-500 transition-colors`} />
+                </div>
+              </div>
+            )}
+            <div>
+              <label className={`text-xs font-semibold ${theme.muted} block mb-1.5 uppercase tracking-wider`}>Weight ({unit === "metric" ? "kg" : "lbs"})</label>
+              <input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder={unit === "metric" ? "e.g. 70" : "e.g. 154"}
+                className={`w-full px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-green-500 transition-colors`} />
+            </div>
+          </div>
+
+          <button onClick={calcBMI}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-green-700 to-emerald-600 text-white font-bold text-base hover:scale-[1.02] transition-all duration-200 mb-4">
+            Calculate My BMI
+          </button>
+
+          {bmi && cat && (
+            <div className={`rounded-2xl p-5 ${dark ? "bg-slate-800" : cat.bg}`}>
+              {/* BMI value */}
+              <div className="flex items-center justify-between mb-3">
+                <span className={`text-3xl font-bold ${cat.color}`}>{bmi}</span>
+                <span className={`text-sm font-bold px-3 py-1 rounded-full ${dark ? "bg-slate-700 " + cat.color : cat.color + " bg-white/60"}`}>{cat.label}</span>
+              </div>
+              {/* Scale bar */}
+              <div className="h-3 rounded-full bg-gradient-to-r from-blue-400 via-green-400 via-amber-400 to-red-600 mb-1 relative">
+                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-slate-700 rounded-full shadow"
+                  style={{ left: `calc(${pct}% - 8px)` }} />
+              </div>
+              <div className={`flex justify-between text-xs ${theme.muted} mb-4`}>
+                <span>10</span><span>18.5</span><span>25</span><span>30</span><span>40+</span>
+              </div>
+              <p className={`text-sm ${dark ? "text-slate-300" : "text-slate-700"}`}>{cat.advice}</p>
+              <p className={`text-xs ${theme.muted} mt-3`}>⚠️ BMI is a screening tool only and does not account for muscle mass, age, or ethnicity. Always consult a physician for a full health assessment.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Medical Intake Modal ──────────────────────────────────────────────────
+// ─── Zorim AI: Self-Contained Clinical Decision Engine ───────────────────────
+// No external API. All logic runs entirely inside the browser.
+
+const SYMPTOM_KB = [
+  // ── EMERGENCY ──
+  { keywords: ["chest pain","chest tightness","chest pressure","heart attack","crushing chest"], conditions: ["Acute Coronary Syndrome (possible heart attack)","Unstable Angina","Aortic Dissection"], urgency: "EMERGENCY", redFlags: ["Chest pain radiating to arm or jaw","Sweating with chest pain","Shortness of breath with chest pain"], nextSteps: ["Call 112 immediately","Do NOT drive yourself","Chew aspirin 300mg if available and not allergic","Lie down and rest"], summary: "Patient presents with chest pain — emergency cardiac evaluation required immediately." },
+  { keywords: ["stroke","face drooping","arm weakness","speech difficulty","sudden numbness","sudden confusion","sudden vision loss"], conditions: ["Ischaemic Stroke","Transient Ischaemic Attack (TIA)","Haemorrhagic Stroke"], urgency: "EMERGENCY", redFlags: ["Facial drooping (one side)","Unable to raise both arms equally","Slurred or absent speech","Sudden severe headache"], nextSteps: ["Call 112 immediately — time is critical for stroke","Note exact time symptoms started","Do NOT give food or water"], summary: "Patient presents with stroke symptoms — immediate neurological emergency." },
+  { keywords: ["can't breathe","cannot breathe","not breathing","severe breathing difficulty","choking","anaphylaxis","allergic reaction severe"], conditions: ["Severe Anaphylaxis","Acute Asthma Attack","Pulmonary Embolism","Foreign Body Airway Obstruction"], urgency: "EMERGENCY", redFlags: ["Cannot complete sentences","Lips or fingernails turning blue","Throat swelling"], nextSteps: ["Call 112 immediately","Sit upright","Use inhaler if available (asthma)","Epinephrine auto-injector if prescribed"], summary: "Patient presents with acute respiratory emergency." },
+  { keywords: ["unconscious","unresponsive","not waking","fainted","collapsed","seizure","convulsion","fitting"], conditions: ["Syncope","Seizure Disorder","Hypoglycaemia","Cardiac Arrhythmia"], urgency: "EMERGENCY", redFlags: ["Prolonged unconsciousness","Tongue biting","Incontinence during episode","No pulse"], nextSteps: ["Call 112 immediately","Place in recovery position","Do not restrain during seizure","Check breathing and pulse"], summary: "Patient presents with loss of consciousness or seizure — emergency evaluation required." },
+  { keywords: ["heavy bleeding","uncontrolled bleeding","bleeding won't stop","vomiting blood","blood in stool black"], conditions: ["Gastrointestinal Haemorrhage","Peptic Ulcer Bleeding","Oesophageal Varices"], urgency: "EMERGENCY", redFlags: ["Black tarry stool","Bright red blood in vomit","Dizziness with bleeding","Rapid weak pulse"], nextSteps: ["Call 112 immediately","Apply pressure to external wounds","Do not eat or drink"], summary: "Patient presents with significant haemorrhage — emergency surgical evaluation required." },
+
+  // ── HIGH URGENCY ──
+  { keywords: ["high fever","very high temperature","fever 39","fever 40","fever 41","high temperature","shivering fever"], conditions: ["Severe Bacterial Infection","Malaria","Typhoid Fever","Meningitis"], urgency: "HIGH", redFlags: ["Fever above 39.5°C","Stiff neck with fever","Rash with fever","Confusion with fever — possible meningitis"], nextSteps: ["Visit hospital or clinic today","Take paracetamol to reduce fever","Malaria rapid test recommended","Stay hydrated"], summary: "Patient presents with high-grade fever requiring same-day clinical evaluation." },
+  { keywords: ["malaria","chills","sweating fever","rigors","shaking chills","headache fever body ache"], conditions: ["Plasmodium falciparum Malaria","Typhoid Fever","Dengue Fever","Viral Haemorrhagic Fever"], urgency: "HIGH", redFlags: ["Fever with confusion","Yellow eyes or skin (jaundice)","Difficulty breathing with fever","Dark cola-coloured urine"], nextSteps: ["Get a malaria RDT or blood film test urgently","Visit a clinic today","Do not self-medicate with ACTs without testing","Stay hydrated"], summary: "Patient presents with symptoms consistent with malaria — urgent parasitological testing required." },
+  { keywords: ["severe abdominal pain","stomach pain severe","appendix","right side pain sharp","abdominal rigidity"], conditions: ["Acute Appendicitis","Ectopic Pregnancy","Ovarian Torsion","Peritonitis","Bowel Obstruction"], urgency: "HIGH", redFlags: ["Pain that worsens with movement","Rigid board-like abdomen","Fever with severe abdominal pain","Pain in right lower quadrant"], nextSteps: ["Seek hospital evaluation today — possible surgical emergency","Do not eat or drink","Do not take painkillers until evaluated (may mask symptoms)"], summary: "Patient presents with acute abdominal pain — surgical emergency must be excluded." },
+  { keywords: ["head injury","concussion","hit head","head trauma","knock to head","fell and hit head"], conditions: ["Concussion","Intracranial Haemorrhage","Skull Fracture"], urgency: "HIGH", redFlags: ["Loss of consciousness after head injury","Vomiting after head injury","Confusion or memory loss","Worsening headache after head injury"], nextSteps: ["Go to A&E today","Do not leave patient alone for 24 hours","Avoid painkillers containing aspirin","CT scan may be required"], summary: "Patient presents with head injury — intracranial pathology must be excluded." },
+  { keywords: ["diabetic","sugar very high","hyperglycaemia","glucose high","DKA","diabetic emergency","sugar level"], conditions: ["Diabetic Ketoacidosis (DKA)","Hyperosmolar Hyperglycaemic State","Severe Hypoglycaemia"], urgency: "HIGH", redFlags: ["Blood glucose above 15 mmol/L","Fruity breath odour","Vomiting with diabetes","Confusion in a diabetic patient"], nextSteps: ["Check blood glucose immediately","If glucose very high — go to hospital today","If glucose low — take sugary drink immediately","Do not skip insulin doses"], summary: "Patient presents with diabetic emergency — urgent glucose management and medical review required." },
+
+  // ── MODERATE URGENCY ──
+  { keywords: ["headache","head pain","migraine","head ache","throbbing head"], conditions: ["Tension Headache","Migraine","Hypertensive Headache","Sinusitis"], urgency: "MODERATE", redFlags: ["Worst headache of your life (thunderclap)","Headache with fever and stiff neck","Headache with vision changes","Headache after head injury"], nextSteps: ["Rest in a quiet dark room","Take paracetamol or ibuprofen as directed","Check blood pressure if possible","Book a telehealth consultation if recurring"], summary: "Patient presents with headache — hypertensive cause and secondary pathology should be excluded." },
+  { keywords: ["high blood pressure","hypertension","BP high","blood pressure high","pressure reading","systolic"], conditions: ["Essential Hypertension","Secondary Hypertension","Hypertensive Urgency"], urgency: "MODERATE", redFlags: ["BP above 180/120 mmHg","Headache with very high BP","Blurred vision with high BP","Chest pain with high BP — EMERGENCY"], nextSteps: ["Take prescribed antihypertensive medication","Avoid salt, stress, and caffeine","Book telehealth review within 48 hours","Monitor BP twice daily and record readings"], summary: "Patient presents with elevated blood pressure — medication review and lifestyle counselling indicated." },
+  { keywords: ["cough","persistent cough","coughing","chest cough","productive cough","coughing blood","haemoptysis"], conditions: ["Upper Respiratory Tract Infection","Pulmonary Tuberculosis","Asthma","Pneumonia","Chronic Bronchitis"], urgency: "MODERATE", redFlags: ["Coughing blood","Cough lasting more than 3 weeks — TB screening required","Night sweats with cough","Weight loss with cough"], nextSteps: ["If cough >3 weeks — TB sputum test essential","Avoid smoking","Stay hydrated","Book telehealth review"], summary: "Patient presents with cough — pulmonary tuberculosis must be excluded if duration exceeds 3 weeks." },
+  { keywords: ["diabetes","sugar","blood glucose","type 2","type 1","insulin","metformin"], conditions: ["Type 2 Diabetes Mellitus","Type 1 Diabetes Mellitus","Pre-Diabetes","Metabolic Syndrome"], urgency: "MODERATE", redFlags: ["Frequent urination + excessive thirst + weight loss","Non-healing wounds","Blurred vision in a diabetic","Numbness in feet"], nextSteps: ["Check fasting blood glucose","Book telehealth consultation","Reduce sugar, white bread, and rice intake","Take medications as prescribed"], summary: "Patient presents with diabetes-related concerns — HbA1c and fasting glucose review recommended." },
+  { keywords: ["diarrhoea","diarrhea","loose stool","running stomach","frequent stool","watery stool","cholera"], conditions: ["Acute Gastroenteritis","Cholera","Typhoid Fever","Irritable Bowel Syndrome","Food Poisoning"], urgency: "MODERATE", redFlags: ["Blood or mucus in stool","Signs of dehydration (dry mouth, no urine, sunken eyes)","Diarrhoea with high fever","Diarrhoea for more than 3 days"], nextSteps: ["Drink ORS (Oral Rehydration Solution) frequently","Avoid dairy, spicy, or fatty foods","Visit clinic if diarrhoea persists beyond 48 hours","Wash hands thoroughly"], summary: "Patient presents with diarrhoea — dehydration prevention and infective cause workup indicated." },
+  { keywords: ["urinary","burning urination","painful urination","frequent urination","UTI","urine infection","urethral discharge"], conditions: ["Urinary Tract Infection (UTI)","Sexually Transmitted Infection","Kidney Infection (Pyelonephritis)","Prostatitis (men)"], urgency: "MODERATE", redFlags: ["Fever with urinary symptoms — possible kidney infection","Blood in urine","Back or flank pain with urinary symptoms","Urethral discharge"], nextSteps: ["Increase fluid intake","Book telehealth consultation for urine culture","Do not self-medicate antibiotics without culture result","Complete full antibiotic course if prescribed"], summary: "Patient presents with urinary symptoms — urine microscopy culture and sensitivity (MCS) recommended." },
+  { keywords: ["skin rash","rash","itching","hives","eczema","skin lesion","skin infection","boil","abscess"], conditions: ["Allergic Contact Dermatitis","Eczema (Atopic Dermatitis)","Fungal Skin Infection","Cellulitis","Chickenpox"], urgency: "MODERATE", redFlags: ["Rapidly spreading rash with fever","Rash with breathing difficulty — EMERGENCY","Painful red swollen skin (possible cellulitis)","Rash on face with systemic symptoms"], nextSteps: ["Avoid scratching","Apply calamine lotion for itch relief","Book telehealth dermatology review","Avoid soap and detergents on affected area"], summary: "Patient presents with dermatological complaint — clinical assessment and allergy workup recommended." },
+  { keywords: ["sickle cell","crisis","vaso-occlusive","bone pain","sickling","HbSS","genotype SS"], conditions: ["Sickle Cell Vaso-Occlusive Crisis","Acute Chest Syndrome","Splenic Sequestration","Aplastic Crisis"], urgency: "MODERATE", redFlags: ["Chest pain with sickle cell — EMERGENCY","Fever in sickle cell patient","Sudden severe headache in sickle cell","Priapism (prolonged painful erection)"], nextSteps: ["Increase fluid intake (oral or IV)","Take prescribed pain relief","Visit hospital for IV fluids and pain management if severe","Keep warm and avoid cold"], summary: "Patient presents with sickle cell crisis — haematological and pain management review required." },
+
+  // ── LOW URGENCY ──
+  { keywords: ["cold","runny nose","sneezing","blocked nose","stuffy nose","common cold","nasal congestion"], conditions: ["Common Cold (Rhinovirus)","Allergic Rhinitis","Sinusitis"], urgency: "LOW", redFlags: ["Symptoms lasting more than 10 days","Fever above 38.5°C","Green or yellow nasal discharge for more than a week"], nextSteps: ["Rest and stay hydrated","Take paracetamol for discomfort","Saline nasal rinse can help","Book telehealth if no improvement in 7 days"], summary: "Patient presents with upper respiratory symptoms — likely viral, supportive management recommended." },
+  { keywords: ["back pain","lower back","backache","back ache","lumbar","spine pain"], conditions: ["Musculoskeletal Back Pain","Lumbar Disc Herniation","Kidney Stone (if flank)","Muscle Strain"], urgency: "LOW", redFlags: ["Back pain with numbness or weakness in legs","Loss of bladder or bowel control with back pain","Back pain after trauma","Night pain that wakes from sleep"], nextSteps: ["Rest and apply warm compress","Take ibuprofen or paracetamol as directed","Gentle stretching after 48 hours","Book physiotherapy or telehealth review if persisting"], summary: "Patient presents with back pain — red flag exclusion and musculoskeletal assessment recommended." },
+  { keywords: ["stress","anxiety","worried","panic","overthinking","nervous","mental health","depression","sad","low mood"], conditions: ["Generalised Anxiety Disorder","Major Depressive Disorder","Adjustment Disorder","Burnout Syndrome"], urgency: "LOW", redFlags: ["Thoughts of self-harm or suicide — seek help immediately","Unable to care for yourself or dependants","Prolonged inability to sleep or eat"], nextSteps: ["Book a mental health telehealth session","Talk to a trusted person","Reduce caffeine and screen time","Practice slow breathing exercises daily"], summary: "Patient presents with mental health concerns — psychological evaluation and supportive therapy recommended." },
+  { keywords: ["tired","fatigue","weakness","exhausted","always tired","no energy","lethargy"], conditions: ["Anaemia","Hypothyroidism","Diabetes Mellitus","Depression","Chronic Fatigue Syndrome"], urgency: "LOW", redFlags: ["Extreme fatigue with chest pain","Fatigue with jaundice (yellow eyes)","Fatigue with unexplained weight loss","Fatigue in a known diabetic or HIV patient"], nextSteps: ["Check full blood count (FBC) and thyroid function","Ensure adequate sleep (7–9 hours)","Eat iron-rich foods (beans, meat, leafy greens)","Book telehealth review for blood tests"], summary: "Patient presents with fatigue — haematological and metabolic workup recommended to exclude organic cause." },
+  { keywords: ["weight loss","losing weight","unintentional weight loss","weight reducing"], conditions: ["Tuberculosis","HIV/AIDS","Diabetes Mellitus","Malignancy","Hyperthyroidism"], urgency: "LOW", redFlags: ["Weight loss with night sweats and cough — TB screening essential","Weight loss with blood in stool","Weight loss with fatigue and lumps"], nextSteps: ["Book telehealth consultation urgently","HIV and TB screening recommended","Full blood count and metabolic panel","Do not ignore unexplained weight loss"], summary: "Patient presents with unexplained weight loss — comprehensive metabolic and infectious disease workup required." },
+];
+
+function matchSymptoms(text) {
+  const lower = text.toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  for (const entry of SYMPTOM_KB) {
+    const score = entry.keywords.filter(k => lower.includes(k)).length;
+    if (score > bestScore) { bestScore = score; best = entry; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+const INTAKE_QUESTIONS = [
+  { key: "symptom",   ask: "What is your main health concern or symptom today?" },
+  { key: "duration",  ask: "How long have you been experiencing this? (e.g. 2 days, 1 week)" },
+  { key: "severity",  ask: "On a scale of 1–10, how severe is it? (1 = mild, 10 = unbearable)" },
+  { key: "age",       ask: "How old are you, and what is your gender?" },
+  { key: "history",   ask: "Do you have any existing medical conditions (e.g. diabetes, hypertension, sickle cell)? Or are you currently on any medications?" },
+  { key: "other",     ask: "Any other symptoms alongside the main one? (e.g. fever, nausea, dizziness)" },
+];
+
+function buildReport(data) {
+  const combined = Object.values(data).join(" ");
+  const match = matchSymptoms(combined) || matchSymptoms(data.symptom || "");
+
+  if (!match) {
+    return `Thank you for sharing that information. Based on what you've described, I wasn't able to match a specific condition in my database — but that doesn't mean your concern is unimportant.\n\n✅ RECOMMENDED NEXT STEPS\n• Book a telehealth consultation with a Zorim Care doctor for a proper clinical review.\n• Note down all your symptoms, when they started, and any medications you're taking.\n\n⚠️ These findings are informational only and require confirmation by a qualified physician.`;
+  }
+
+  const urgencyColors = { EMERGENCY: "🚨", HIGH: "🔴", MODERATE: "🟡", LOW: "🟢" };
+  const icon = urgencyColors[match.urgency] || "🟡";
+
+  return `Thank you. Based on the information you've provided, here is your Zorim AI health assessment:\n\n📋 SYMPTOM SUMMARY\nPatient (${data.age || "age not provided"}) reports: ${data.symptom || "stated concern"}. Duration: ${data.duration || "not specified"}. Severity: ${data.severity || "not rated"}/10. Additional symptoms: ${data.other || "none mentioned"}. Medical history: ${data.history || "none stated"}.\n\n🔬 POSSIBLE CONDITIONS\n${match.conditions.map((c, i) => `${i + 1}. ${c}`).join("\n")}\n\n🚦 URGENCY LEVEL: ${icon} ${match.urgency}\n\n✅ RECOMMENDED NEXT STEPS\n${match.nextSteps.map(s => `• ${s}`).join("\n")}\n\n🚨 RED FLAG WARNINGS\nSeek emergency care immediately if you experience:\n${match.redFlags.map(r => `• ${r}`).join("\n")}\n\n📄 PROVIDER SUMMARY\n${match.summary} Patient age/gender: ${data.age || "not provided"}. Duration of symptoms: ${data.duration || "unspecified"}. Severity score: ${data.severity || "N/A"}/10. Background: ${data.history || "nil known"}.\n\n⚠️ IMPORTANT DISCLAIMER\nThese findings are informational only and do not constitute a medical diagnosis. All outputs must be confirmed by a qualified physician. Zorim Care is not liable for clinical decisions made on the basis of this tool alone.`;
+}
+
+function AIMedicalModal({ onClose, dark }) {
+  const [step, setStep] = useState(0);
+  const [data, setData] = useState({});
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hello! I'm Zorim AI, your health intake assistant 🩺\n\nI'll ask you a few short questions to assess your symptoms and provide guidance. This is not a diagnosis — always confirm with a doctor.\n\n" + INTAKE_QUESTIONS[0].ask }
+  ]);
+  const [done, setDone] = useState(false);
+  const bottomRef = useRef(null);
+
+  const theme = {
+    card: dark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200",
+    text: dark ? "text-slate-100" : "text-slate-800",
+    muted: dark ? "text-slate-400" : "text-slate-500",
+    input: dark ? "bg-slate-800 border-slate-600 text-white placeholder-slate-500" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400",
+    bubble: dark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800",
+  };
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const send = () => {
+    if (!input.trim() || done) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const key = INTAKE_QUESTIONS[step]?.key;
+    const newData = { ...data, [key]: input.trim() };
+    setData(newData);
+    setInput("");
+
+    // Emergency keyword fast-path
+    const lower = input.toLowerCase();
+    const emergencyWords = ["chest pain","can't breathe","cannot breathe","not breathing","stroke","unconscious","unresponsive","heavy bleeding","vomiting blood","heart attack","choking","seizure","convulsion","collapsed"];
+    if (emergencyWords.some(w => lower.includes(w))) {
+      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "🚨 EMERGENCY DETECTED\n\nBased on what you've described, this may be a life-threatening emergency.\n\n📞 CALL 112 IMMEDIATELY or go to the nearest hospital A&E.\n\nDo NOT wait. Do NOT drive yourself if possible. Alert someone nearby.\n\n⚠️ These findings are informational only — but please do not delay emergency care." }]);
+      setDone(true);
+      return;
+    }
+
+    const nextStep = step + 1;
+    if (nextStep < INTAKE_QUESTIONS.length) {
+      setMessages(prev => [...prev, userMsg, { role: "assistant", content: INTAKE_QUESTIONS[nextStep].ask }]);
+      setStep(nextStep);
+    } else {
+      const report = buildReport(newData);
+      setMessages(prev => [...prev, userMsg, { role: "assistant", content: report }]);
+      setDone(true);
+    }
+  };
+
+  const restart = () => {
+    setStep(0); setData({}); setInput(""); setDone(false);
+    setMessages([{ role: "assistant", content: "Let's start again. " + INTAKE_QUESTIONS[0].ask }]);
+  };
+
+  const formatMsg = (text) => text.split("\n").map((line, i, arr) => (
+    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+  ));
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}>
+      <div className={`${theme.card} border rounded-3xl w-full max-w-lg shadow-2xl flex flex-col`} style={{ height: "85vh" }}>
+        {/* Header */}
+        <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: dark ? "#334155" : "#e2e8f0" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-xl">🤖</div>
+            <div>
+              <div className={`font-bold ${theme.text}`}>Zorim AI Health Assistant</div>
+              <div className={`text-xs ${theme.muted}`}>
+                {done ? "Assessment complete" : `Step ${step + 1} of ${INTAKE_QUESTIONS.length}`}
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"} hover:scale-110 transition-transform text-lg`}>✕</button>
+        </div>
+
+        {/* Progress bar */}
+        {!done && (
+          <div className="h-1 bg-slate-200">
+            <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-600 transition-all duration-500"
+              style={{ width: `${((step) / INTAKE_QUESTIONS.length) * 100}%` }} />
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
+          <span className="text-amber-500 text-sm mt-0.5">⚠️</span>
+          <p className="text-amber-700 text-xs leading-relaxed">Informational only — not a medical diagnosis. Emergency? Call <strong>112</strong>.</p>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "assistant" && (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-sm mr-2 mt-1 flex-shrink-0">🤖</div>
+              )}
+              <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${m.role === "user" ? "bg-green-700 text-white rounded-br-sm" : theme.bubble + " rounded-bl-sm"}`}>
+                {formatMsg(m.content)}
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input / done state */}
+        <div className="p-4 border-t" style={{ borderColor: dark ? "#334155" : "#e2e8f0" }}>
+          {done ? (
+            <div className="space-y-2">
+              <button onClick={restart}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm hover:scale-[1.02] transition-all">
+                Start New Assessment 🔄
+              </button>
+              <button onClick={onClose}
+                className={`w-full py-3 rounded-xl border font-semibold text-sm ${dark ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"} hover:scale-[1.02] transition-all`}>
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input value={input} onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && send()}
+                  placeholder="Type your answer..."
+                  className={`flex-1 px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-purple-500 transition-colors`} />
+                <button onClick={send} disabled={!input.trim()}
+                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100">
+                  Send
+                </button>
+              </div>
+              <p className={`${theme.muted} text-xs text-center mt-2`}>Press Enter to send · All data stays on your device</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Consultation Booking Modal ───────────────────────────────────────────────
 // Opens Calendly so patients can book a real Google Meet consultation.
 const CALENDLY_URL = "https://calendly.com/zorimcare/30min";
@@ -205,6 +540,8 @@ export default function ZorimCareApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showBMI, setShowBMI] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", message: "", service: "", city: "" });
   const [submitted, setSubmitted] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
@@ -322,6 +659,8 @@ export default function ZorimCareApp() {
 
       {/* ── Consultation Modal (shown when user clicks "Book") ── */}
       {showModal && <ConsultationModal onClose={() => setShowModal(false)} dark={dark} />}
+      {showBMI && <BMIModal onClose={() => setShowBMI(false)} dark={dark} />}
+      {showAI && <AIMedicalModal onClose={() => setShowAI(false)} dark={dark} />}
 
       {/* ══════════════════════════════════════════════════════════
           NAVIGATION
@@ -892,6 +1231,76 @@ export default function ZorimCareApp() {
               </div>
             </AnimatedSection>
           </div>
+        </div>
+      </section>
+
+
+      {/* ══════════════════════════════════════════════════════════
+          HEALTH TOOLS SECTION
+      ══════════════════════════════════════════════════════════ */}
+      <section id="health-tools" className={`py-24 ${dark ? "bg-slate-900" : "bg-gradient-to-b from-white to-slate-50"}`}>
+        <div className="max-w-7xl mx-auto px-5">
+          <AnimatedSection>
+            <div className="text-center mb-14">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-widest mb-4 ${dark ? "bg-emerald-900/30 text-emerald-400" : "bg-emerald-50 text-emerald-700"}`}>
+                🛠 Health Tools
+              </div>
+              <h2 className={`text-4xl md:text-5xl font-bold mb-4 ${dark ? "text-white" : "text-slate-900"}`}
+                style={{ fontFamily: "Cormorant Garamond, serif" }}>
+                Your Personal Health Toolkit
+              </h2>
+              <p className={`${dark ? "text-slate-400" : "text-slate-500"} max-w-xl mx-auto`}>
+                Free tools to help you understand your health — always backed by the advice to consult a qualified doctor.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              {/* BMI Calculator Card */}
+              <div className={`rounded-3xl p-8 border ${dark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"} shadow-lg hover:shadow-xl transition-shadow`}>
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-3xl mb-5">⚖️</div>
+                <h3 className={`text-2xl font-bold mb-2 ${dark ? "text-white" : "text-slate-900"}`} style={{ fontFamily: "Cormorant Garamond, serif" }}>
+                  BMI Calculator
+                </h3>
+                <p className={`${dark ? "text-slate-400" : "text-slate-500"} text-sm mb-6 leading-relaxed`}>
+                  Calculate your Body Mass Index instantly. Supports metric and imperial units with personalised health guidance based on your result.
+                </p>
+                <ul className={`text-sm ${dark ? "text-slate-400" : "text-slate-500"} space-y-1.5 mb-6`}>
+                  <li>✅ Metric & imperial units</li>
+                  <li>✅ Visual BMI scale</li>
+                  <li>✅ Personalised health advice</li>
+                </ul>
+                <button onClick={() => setShowBMI(true)}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-bold hover:scale-[1.02] transition-all duration-200">
+                  Calculate My BMI ⚖️
+                </button>
+              </div>
+
+              {/* AI Medical Intake Card */}
+              <div className={`rounded-3xl p-8 border ${dark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"} shadow-lg hover:shadow-xl transition-shadow`}>
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-3xl mb-5">🤖</div>
+                <h3 className={`text-2xl font-bold mb-2 ${dark ? "text-white" : "text-slate-900"}`} style={{ fontFamily: "Cormorant Garamond, serif" }}>
+                  AI Symptom Assessment
+                </h3>
+                <p className={`${dark ? "text-slate-400" : "text-slate-500"} text-sm mb-6 leading-relaxed`}>
+                  Describe your symptoms conversationally. Our AI collects your health history and generates a structured clinical summary for your doctor.
+                </p>
+                <ul className={`text-sm ${dark ? "text-slate-400" : "text-slate-500"} space-y-1.5 mb-6`}>
+                  <li>✅ Differential diagnosis suggestions</li>
+                  <li>✅ Urgency & risk assessment</li>
+                  <li>✅ Red-flag warnings</li>
+                  <li>✅ Provider-ready summary</li>
+                </ul>
+                <button onClick={() => setShowAI(true)}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold hover:scale-[1.02] transition-all duration-200">
+                  Start AI Assessment 🤖
+                </button>
+              </div>
+            </div>
+
+            <p className={`text-center text-xs ${dark ? "text-slate-500" : "text-slate-400"} mt-8 max-w-lg mx-auto`}>
+              ⚠️ All tools are for informational purposes only. Results do not constitute a medical diagnosis and must be reviewed by a qualified healthcare professional.
+            </p>
+          </AnimatedSection>
         </div>
       </section>
 

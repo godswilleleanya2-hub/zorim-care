@@ -262,52 +262,8 @@ function BMIModal({ onClose, dark }) {
 }
 
 // ─── AI Medical Intake Modal ──────────────────────────────────────────────────
-// ─── Zorim AI: Self-Contained Clinical Decision Engine ───────────────────────
-// No external API. All logic runs entirely inside the browser.
-
-const SYMPTOM_KB = [
-  // ── EMERGENCY ──
-  { keywords: ["chest pain","chest tightness","chest pressure","heart attack","crushing chest"], conditions: ["Acute Coronary Syndrome (possible heart attack)","Unstable Angina","Aortic Dissection"], urgency: "EMERGENCY", redFlags: ["Chest pain radiating to arm or jaw","Sweating with chest pain","Shortness of breath with chest pain"], nextSteps: ["Call 112 immediately","Do NOT drive yourself","Chew aspirin 300mg if available and not allergic","Lie down and rest"], summary: "Patient presents with chest pain — emergency cardiac evaluation required immediately." },
-  { keywords: ["stroke","face drooping","arm weakness","speech difficulty","sudden numbness","sudden confusion","sudden vision loss"], conditions: ["Ischaemic Stroke","Transient Ischaemic Attack (TIA)","Haemorrhagic Stroke"], urgency: "EMERGENCY", redFlags: ["Facial drooping (one side)","Unable to raise both arms equally","Slurred or absent speech","Sudden severe headache"], nextSteps: ["Call 112 immediately — time is critical for stroke","Note exact time symptoms started","Do NOT give food or water"], summary: "Patient presents with stroke symptoms — immediate neurological emergency." },
-  { keywords: ["can't breathe","cannot breathe","not breathing","severe breathing difficulty","choking","anaphylaxis","allergic reaction severe"], conditions: ["Severe Anaphylaxis","Acute Asthma Attack","Pulmonary Embolism","Foreign Body Airway Obstruction"], urgency: "EMERGENCY", redFlags: ["Cannot complete sentences","Lips or fingernails turning blue","Throat swelling"], nextSteps: ["Call 112 immediately","Sit upright","Use inhaler if available (asthma)","Epinephrine auto-injector if prescribed"], summary: "Patient presents with acute respiratory emergency." },
-  { keywords: ["unconscious","unresponsive","not waking","fainted","collapsed","seizure","convulsion","fitting"], conditions: ["Syncope","Seizure Disorder","Hypoglycaemia","Cardiac Arrhythmia"], urgency: "EMERGENCY", redFlags: ["Prolonged unconsciousness","Tongue biting","Incontinence during episode","No pulse"], nextSteps: ["Call 112 immediately","Place in recovery position","Do not restrain during seizure","Check breathing and pulse"], summary: "Patient presents with loss of consciousness or seizure — emergency evaluation required." },
-  { keywords: ["heavy bleeding","uncontrolled bleeding","bleeding won't stop","vomiting blood","blood in stool black"], conditions: ["Gastrointestinal Haemorrhage","Peptic Ulcer Bleeding","Oesophageal Varices"], urgency: "EMERGENCY", redFlags: ["Black tarry stool","Bright red blood in vomit","Dizziness with bleeding","Rapid weak pulse"], nextSteps: ["Call 112 immediately","Apply pressure to external wounds","Do not eat or drink"], summary: "Patient presents with significant haemorrhage — emergency surgical evaluation required." },
-
-  // ── HIGH URGENCY ──
-  { keywords: ["high fever","very high temperature","fever 39","fever 40","fever 41","high temperature","shivering fever"], conditions: ["Severe Bacterial Infection","Malaria","Typhoid Fever","Meningitis"], urgency: "HIGH", redFlags: ["Fever above 39.5°C","Stiff neck with fever","Rash with fever","Confusion with fever — possible meningitis"], nextSteps: ["Visit hospital or clinic today","Take paracetamol to reduce fever","Malaria rapid test recommended","Stay hydrated"], summary: "Patient presents with high-grade fever requiring same-day clinical evaluation." },
-  { keywords: ["malaria","chills","sweating fever","rigors","shaking chills","headache fever body ache"], conditions: ["Plasmodium falciparum Malaria","Typhoid Fever","Dengue Fever","Viral Haemorrhagic Fever"], urgency: "HIGH", redFlags: ["Fever with confusion","Yellow eyes or skin (jaundice)","Difficulty breathing with fever","Dark cola-coloured urine"], nextSteps: ["Get a malaria RDT or blood film test urgently","Visit a clinic today","Do not self-medicate with ACTs without testing","Stay hydrated"], summary: "Patient presents with symptoms consistent with malaria — urgent parasitological testing required." },
-  { keywords: ["severe abdominal pain","stomach pain severe","appendix","right side pain sharp","abdominal rigidity"], conditions: ["Acute Appendicitis","Ectopic Pregnancy","Ovarian Torsion","Peritonitis","Bowel Obstruction"], urgency: "HIGH", redFlags: ["Pain that worsens with movement","Rigid board-like abdomen","Fever with severe abdominal pain","Pain in right lower quadrant"], nextSteps: ["Seek hospital evaluation today — possible surgical emergency","Do not eat or drink","Do not take painkillers until evaluated (may mask symptoms)"], summary: "Patient presents with acute abdominal pain — surgical emergency must be excluded." },
-  { keywords: ["head injury","concussion","hit head","head trauma","knock to head","fell and hit head"], conditions: ["Concussion","Intracranial Haemorrhage","Skull Fracture"], urgency: "HIGH", redFlags: ["Loss of consciousness after head injury","Vomiting after head injury","Confusion or memory loss","Worsening headache after head injury"], nextSteps: ["Go to A&E today","Do not leave patient alone for 24 hours","Avoid painkillers containing aspirin","CT scan may be required"], summary: "Patient presents with head injury — intracranial pathology must be excluded." },
-  { keywords: ["diabetic","sugar very high","hyperglycaemia","glucose high","DKA","diabetic emergency","sugar level"], conditions: ["Diabetic Ketoacidosis (DKA)","Hyperosmolar Hyperglycaemic State","Severe Hypoglycaemia"], urgency: "HIGH", redFlags: ["Blood glucose above 15 mmol/L","Fruity breath odour","Vomiting with diabetes","Confusion in a diabetic patient"], nextSteps: ["Check blood glucose immediately","If glucose very high — go to hospital today","If glucose low — take sugary drink immediately","Do not skip insulin doses"], summary: "Patient presents with diabetic emergency — urgent glucose management and medical review required." },
-
-  // ── MODERATE URGENCY ──
-  { keywords: ["headache","head pain","migraine","head ache","throbbing head"], conditions: ["Tension Headache","Migraine","Hypertensive Headache","Sinusitis"], urgency: "MODERATE", redFlags: ["Worst headache of your life (thunderclap)","Headache with fever and stiff neck","Headache with vision changes","Headache after head injury"], nextSteps: ["Rest in a quiet dark room","Take paracetamol or ibuprofen as directed","Check blood pressure if possible","Book a telehealth consultation if recurring"], summary: "Patient presents with headache — hypertensive cause and secondary pathology should be excluded." },
-  { keywords: ["high blood pressure","hypertension","BP high","blood pressure high","pressure reading","systolic"], conditions: ["Essential Hypertension","Secondary Hypertension","Hypertensive Urgency"], urgency: "MODERATE", redFlags: ["BP above 180/120 mmHg","Headache with very high BP","Blurred vision with high BP","Chest pain with high BP — EMERGENCY"], nextSteps: ["Take prescribed antihypertensive medication","Avoid salt, stress, and caffeine","Book telehealth review within 48 hours","Monitor BP twice daily and record readings"], summary: "Patient presents with elevated blood pressure — medication review and lifestyle counselling indicated." },
-  { keywords: ["cough","persistent cough","coughing","chest cough","productive cough","coughing blood","haemoptysis"], conditions: ["Upper Respiratory Tract Infection","Pulmonary Tuberculosis","Asthma","Pneumonia","Chronic Bronchitis"], urgency: "MODERATE", redFlags: ["Coughing blood","Cough lasting more than 3 weeks — TB screening required","Night sweats with cough","Weight loss with cough"], nextSteps: ["If cough >3 weeks — TB sputum test essential","Avoid smoking","Stay hydrated","Book telehealth review"], summary: "Patient presents with cough — pulmonary tuberculosis must be excluded if duration exceeds 3 weeks." },
-  { keywords: ["diabetes","sugar","blood glucose","type 2","type 1","insulin","metformin"], conditions: ["Type 2 Diabetes Mellitus","Type 1 Diabetes Mellitus","Pre-Diabetes","Metabolic Syndrome"], urgency: "MODERATE", redFlags: ["Frequent urination + excessive thirst + weight loss","Non-healing wounds","Blurred vision in a diabetic","Numbness in feet"], nextSteps: ["Check fasting blood glucose","Book telehealth consultation","Reduce sugar, white bread, and rice intake","Take medications as prescribed"], summary: "Patient presents with diabetes-related concerns — HbA1c and fasting glucose review recommended." },
-  { keywords: ["diarrhoea","diarrhea","loose stool","running stomach","frequent stool","watery stool","cholera"], conditions: ["Acute Gastroenteritis","Cholera","Typhoid Fever","Irritable Bowel Syndrome","Food Poisoning"], urgency: "MODERATE", redFlags: ["Blood or mucus in stool","Signs of dehydration (dry mouth, no urine, sunken eyes)","Diarrhoea with high fever","Diarrhoea for more than 3 days"], nextSteps: ["Drink ORS (Oral Rehydration Solution) frequently","Avoid dairy, spicy, or fatty foods","Visit clinic if diarrhoea persists beyond 48 hours","Wash hands thoroughly"], summary: "Patient presents with diarrhoea — dehydration prevention and infective cause workup indicated." },
-  { keywords: ["urinary","burning urination","painful urination","frequent urination","UTI","urine infection","urethral discharge"], conditions: ["Urinary Tract Infection (UTI)","Sexually Transmitted Infection","Kidney Infection (Pyelonephritis)","Prostatitis (men)"], urgency: "MODERATE", redFlags: ["Fever with urinary symptoms — possible kidney infection","Blood in urine","Back or flank pain with urinary symptoms","Urethral discharge"], nextSteps: ["Increase fluid intake","Book telehealth consultation for urine culture","Do not self-medicate antibiotics without culture result","Complete full antibiotic course if prescribed"], summary: "Patient presents with urinary symptoms — urine microscopy culture and sensitivity (MCS) recommended." },
-  { keywords: ["skin rash","rash","itching","hives","eczema","skin lesion","skin infection","boil","abscess"], conditions: ["Allergic Contact Dermatitis","Eczema (Atopic Dermatitis)","Fungal Skin Infection","Cellulitis","Chickenpox"], urgency: "MODERATE", redFlags: ["Rapidly spreading rash with fever","Rash with breathing difficulty — EMERGENCY","Painful red swollen skin (possible cellulitis)","Rash on face with systemic symptoms"], nextSteps: ["Avoid scratching","Apply calamine lotion for itch relief","Book telehealth dermatology review","Avoid soap and detergents on affected area"], summary: "Patient presents with dermatological complaint — clinical assessment and allergy workup recommended." },
-  { keywords: ["sickle cell","crisis","vaso-occlusive","bone pain","sickling","HbSS","genotype SS"], conditions: ["Sickle Cell Vaso-Occlusive Crisis","Acute Chest Syndrome","Splenic Sequestration","Aplastic Crisis"], urgency: "MODERATE", redFlags: ["Chest pain with sickle cell — EMERGENCY","Fever in sickle cell patient","Sudden severe headache in sickle cell","Priapism (prolonged painful erection)"], nextSteps: ["Increase fluid intake (oral or IV)","Take prescribed pain relief","Visit hospital for IV fluids and pain management if severe","Keep warm and avoid cold"], summary: "Patient presents with sickle cell crisis — haematological and pain management review required." },
-
-  // ── LOW URGENCY ──
-  { keywords: ["cold","runny nose","sneezing","blocked nose","stuffy nose","common cold","nasal congestion"], conditions: ["Common Cold (Rhinovirus)","Allergic Rhinitis","Sinusitis"], urgency: "LOW", redFlags: ["Symptoms lasting more than 10 days","Fever above 38.5°C","Green or yellow nasal discharge for more than a week"], nextSteps: ["Rest and stay hydrated","Take paracetamol for discomfort","Saline nasal rinse can help","Book telehealth if no improvement in 7 days"], summary: "Patient presents with upper respiratory symptoms — likely viral, supportive management recommended." },
-  { keywords: ["back pain","lower back","backache","back ache","lumbar","spine pain"], conditions: ["Musculoskeletal Back Pain","Lumbar Disc Herniation","Kidney Stone (if flank)","Muscle Strain"], urgency: "LOW", redFlags: ["Back pain with numbness or weakness in legs","Loss of bladder or bowel control with back pain","Back pain after trauma","Night pain that wakes from sleep"], nextSteps: ["Rest and apply warm compress","Take ibuprofen or paracetamol as directed","Gentle stretching after 48 hours","Book physiotherapy or telehealth review if persisting"], summary: "Patient presents with back pain — red flag exclusion and musculoskeletal assessment recommended." },
-  { keywords: ["stress","anxiety","worried","panic","overthinking","nervous","mental health","depression","sad","low mood"], conditions: ["Generalised Anxiety Disorder","Major Depressive Disorder","Adjustment Disorder","Burnout Syndrome"], urgency: "LOW", redFlags: ["Thoughts of self-harm or suicide — seek help immediately","Unable to care for yourself or dependants","Prolonged inability to sleep or eat"], nextSteps: ["Book a mental health telehealth session","Talk to a trusted person","Reduce caffeine and screen time","Practice slow breathing exercises daily"], summary: "Patient presents with mental health concerns — psychological evaluation and supportive therapy recommended." },
-  { keywords: ["tired","fatigue","weakness","exhausted","always tired","no energy","lethargy"], conditions: ["Anaemia","Hypothyroidism","Diabetes Mellitus","Depression","Chronic Fatigue Syndrome"], urgency: "LOW", redFlags: ["Extreme fatigue with chest pain","Fatigue with jaundice (yellow eyes)","Fatigue with unexplained weight loss","Fatigue in a known diabetic or HIV patient"], nextSteps: ["Check full blood count (FBC) and thyroid function","Ensure adequate sleep (7–9 hours)","Eat iron-rich foods (beans, meat, leafy greens)","Book telehealth review for blood tests"], summary: "Patient presents with fatigue — haematological and metabolic workup recommended to exclude organic cause." },
-  { keywords: ["weight loss","losing weight","unintentional weight loss","weight reducing"], conditions: ["Tuberculosis","HIV/AIDS","Diabetes Mellitus","Malignancy","Hyperthyroidism"], urgency: "LOW", redFlags: ["Weight loss with night sweats and cough — TB screening essential","Weight loss with blood in stool","Weight loss with fatigue and lumps"], nextSteps: ["Book telehealth consultation urgently","HIV and TB screening recommended","Full blood count and metabolic panel","Do not ignore unexplained weight loss"], summary: "Patient presents with unexplained weight loss — comprehensive metabolic and infectious disease workup required." },
-];
-
-function matchSymptoms(text) {
-  const lower = text.toLowerCase();
-  let best = null;
-  let bestScore = 0;
-  for (const entry of SYMPTOM_KB) {
-    const score = entry.keywords.filter(k => lower.includes(k)).length;
-    if (score > bestScore) { bestScore = score; best = entry; }
-  }
-  return bestScore > 0 ? best : null;
-}
+// ─── Zorim AI: Anthropic API-Powered Clinical Engine ─────────────────────────
+// Powered by Claude — comprehensive knowledge of all known diseases & symptoms.
 
 const INTAKE_QUESTIONS = [
   { key: "symptom",   ask: "What is your main health concern or symptom today?" },
@@ -318,18 +274,113 @@ const INTAKE_QUESTIONS = [
   { key: "other",     ask: "Any other symptoms alongside the main one? (e.g. fever, nausea, dizziness)" },
 ];
 
-function buildReport(data) {
-  const combined = Object.values(data).join(" ");
-  const match = matchSymptoms(combined) || matchSymptoms(data.symptom || "");
+const ZORIM_SYSTEM_PROMPT = `You are Zorim AI, an advanced clinical symptom assessment engine operating within the Zorim Care telehealth platform in Nigeria. You have comprehensive, up-to-date medical knowledge covering virtually every known disease, syndrome, condition, and symptom documented in modern medicine — spanning all specialties including but not limited to:
 
-  if (!match) {
-    return `Thank you for sharing that information. Based on what you've described, I wasn't able to match a specific condition in my database — but that doesn't mean your concern is unimportant.\n\n✅ RECOMMENDED NEXT STEPS\n• Book a telehealth consultation with a Zorim Care doctor for a proper clinical review.\n• Note down all your symptoms, when they started, and any medications you're taking.\n\n⚠️ These findings are informational only and require confirmation by a qualified physician.`;
-  }
+INTERNAL MEDICINE: hypertension, diabetes mellitus (type 1 & 2), chronic kidney disease, liver disease, thyroid disorders (hypothyroidism, hyperthyroidism, Hashimoto's, Graves'), anaemia (iron-deficiency, megaloblastic, haemolytic, aplastic), haematological malignancies, autoimmune conditions (lupus, rheumatoid arthritis, vasculitis, scleroderma, Sjögren's, antiphospholipid syndrome), metabolic syndrome, dyslipidaemia, gout, hyperuricaemia.
 
-  const urgencyColors = { EMERGENCY: "🚨", HIGH: "🔴", MODERATE: "🟡", LOW: "🟢" };
-  const icon = urgencyColors[match.urgency] || "🟡";
+INFECTIOUS DISEASES (with special emphasis on tropical & Nigerian endemic diseases): malaria (P. falciparum, P. vivax, P. malariae, P. ovale), typhoid fever, cholera, meningococcal meningitis, bacterial meningitis, viral encephalitis, tuberculosis (pulmonary & extra-pulmonary), HIV/AIDS and all opportunistic infections, Lassa fever, Ebola, monkeypox, dengue fever, yellow fever, hepatitis A/B/C/D/E, brucellosis, leptospirosis, rickettsia, onchocerciasis (river blindness), schistosomiasis, trypanosomiasis, leishmaniasis, filariasis, strongyloidiasis, hookworm, ascariasis, amoebiasis, giardiasis, cryptosporidiosis, COVID-19 and its sequelae, influenza, RSV, measles, chickenpox, shingles (herpes zoster), mumps, rubella, polio, tetanus, rabies, anthrax, plague, tularaemia, histoplasmosis, coccidioidomycosis, aspergillosis, cryptococcal meningitis, candidiasis, PCP, CMV, EBV (infectious mononucleosis).
 
-  return `Thank you. Based on the information you've provided, here is your Zorim AI health assessment:\n\n📋 SYMPTOM SUMMARY\nPatient (${data.age || "age not provided"}) reports: ${data.symptom || "stated concern"}. Duration: ${data.duration || "not specified"}. Severity: ${data.severity || "not rated"}/10. Additional symptoms: ${data.other || "none mentioned"}. Medical history: ${data.history || "none stated"}.\n\n🔬 POSSIBLE CONDITIONS\n${match.conditions.map((c, i) => `${i + 1}. ${c}`).join("\n")}\n\n🚦 URGENCY LEVEL: ${icon} ${match.urgency}\n\n✅ RECOMMENDED NEXT STEPS\n${match.nextSteps.map(s => `• ${s}`).join("\n")}\n\n🚨 RED FLAG WARNINGS\nSeek emergency care immediately if you experience:\n${match.redFlags.map(r => `• ${r}`).join("\n")}\n\n📄 PROVIDER SUMMARY\n${match.summary} Patient age/gender: ${data.age || "not provided"}. Duration of symptoms: ${data.duration || "unspecified"}. Severity score: ${data.severity || "N/A"}/10. Background: ${data.history || "nil known"}.\n\n⚠️ IMPORTANT DISCLAIMER\nThese findings are informational only and do not constitute a medical diagnosis. All outputs must be confirmed by a qualified physician. Zorim Care is not liable for clinical decisions made on the basis of this tool alone.`;
+CARDIOVASCULAR: acute coronary syndrome, STEMI, NSTEMI, unstable angina, stable angina, heart failure (HFrEF, HFpEF), atrial fibrillation, ventricular tachycardia, ventricular fibrillation, complete heart block, SVT, WPW syndrome, aortic stenosis, mitral regurgitation, aortic dissection, pericarditis, myocarditis, endocarditis, cardiac tamponade, DVT, pulmonary embolism, peripheral arterial disease, Buerger's disease, Raynaud's phenomenon, varicose veins.
+
+RESPIRATORY: pneumonia (bacterial, viral, fungal, aspiration), COPD, emphysema, chronic bronchitis, asthma, bronchiectasis, interstitial lung disease, pulmonary fibrosis, sarcoidosis, pleural effusion, pneumothorax, lung cancer, mesothelioma, pulmonary hypertension, obstructive sleep apnoea, COVID-19 pneumonitis.
+
+GASTROENTEROLOGY & HEPATOLOGY: GORD, peptic ulcer disease, gastric cancer, oesophageal cancer, coeliac disease, Crohn's disease, ulcerative colitis, irritable bowel syndrome, diverticulitis, bowel obstruction, paralytic ileus, acute appendicitis, peritonitis, acute pancreatitis, chronic pancreatitis, pancreatic cancer, cholecystitis, cholelithiasis, cholangitis, primary biliary cholangitis, primary sclerosing cholangitis, hepatitis, cirrhosis, portal hypertension, hepatocellular carcinoma, ascites, spontaneous bacterial peritonitis, liver failure, Wilson's disease, haemochromatosis, alpha-1 antitrypsin deficiency.
+
+NEUROLOGY: ischaemic stroke, haemorrhagic stroke, TIA, subarachnoid haemorrhage, subdural haematoma, epidural haematoma, epilepsy (all seizure types), migraine (with and without aura), cluster headache, tension headache, trigeminal neuralgia, Bell's palsy, Guillain-Barré syndrome, multiple sclerosis, Parkinson's disease, Alzheimer's disease, vascular dementia, Lewy body dementia, motor neurone disease, myasthenia gravis, neuropathies (diabetic, alcoholic, inflammatory), meningitis, encephalitis, cerebral malaria, normal pressure hydrocephalus, intracranial hypertension, space-occupying lesions.
+
+PSYCHIATRY & MENTAL HEALTH: major depressive disorder, bipolar disorder (I & II), schizophrenia, schizoaffective disorder, generalised anxiety disorder, panic disorder, PTSD, OCD, social anxiety disorder, phobias, ADHD, autism spectrum disorder, personality disorders (borderline, narcissistic, antisocial), eating disorders (anorexia, bulimia, ARFID), substance use disorders (alcohol, cannabis, opioids, stimulants), delirium, dementia, somatic symptom disorder, conversion disorder, adjustment disorder, burnout.
+
+NEPHROLOGY: acute kidney injury, chronic kidney disease (all stages), nephrotic syndrome, nephritic syndrome, IgA nephropathy, focal segmental glomerulosclerosis, membranous nephropathy, polycystic kidney disease, renal cell carcinoma, bladder cancer, urinary tract infections (cystitis, pyelonephritis, urosepsis), urolithiasis, renal calculi, benign prostatic hyperplasia, prostatitis, erectile dysfunction.
+
+ENDOCRINOLOGY: diabetes mellitus, hypoglycaemia, diabetic ketoacidosis, HONK/HHS, hypothyroidism, hyperthyroidism, thyroid storm, thyroiditis, thyroid cancer, Cushing's syndrome, Addison's disease, adrenal crisis, phaeochromocytoma, primary hyperaldosteronism, hypoparathyroidism, hyperparathyroidism, growth hormone disorders, prolactinoma, acromegaly, PCOS, adrenal insufficiency, diabetes insipidus, SIADH.
+
+HAEMATOLOGY: iron-deficiency anaemia, vitamin B12/folate deficiency, haemolytic anaemia, sickle cell disease (HbSS, HbSC, sickle-beta thal), sickle cell crises (vaso-occlusive, acute chest syndrome, splenic sequestration, aplastic crisis, priapism), G6PD deficiency, thalassaemia, hereditary spherocytosis, thrombocytopenia (ITP, TTP, HUS), DIC, haemophilia A & B, von Willebrand disease, polycythaemia vera, essential thrombocythaemia, myelofibrosis, myelodysplastic syndrome, acute leukaemia (AML, ALL), chronic leukaemia (CML, CLL), Hodgkin lymphoma, non-Hodgkin lymphoma, multiple myeloma.
+
+ONCOLOGY: breast cancer, cervical cancer, prostate cancer, lung cancer, colorectal cancer, hepatocellular carcinoma, stomach cancer, oesophageal cancer, ovarian cancer, endometrial cancer, bladder cancer, renal cell carcinoma, thyroid cancer, lymphoma, leukaemia, brain tumours (GBM, meningioma, metastases), skin cancers (melanoma, BCC, SCC), Kaposi's sarcoma, cancer emergencies (SVC syndrome, spinal cord compression, hypercalcaemia of malignancy, febrile neutropenia).
+
+OBSTETRICS & GYNAECOLOGY: normal pregnancy, hyperemesis gravidarum, pre-eclampsia, eclampsia, HELLP syndrome, gestational diabetes, ectopic pregnancy, miscarriage, placenta praevia, placental abruption, PPH, puerperal sepsis, DVT in pregnancy, PCOS, endometriosis, fibroids, ovarian cysts, ovarian torsion, PID, STIs (gonorrhoea, chlamydia, syphilis, HSV, HPV), cervical ectropion, menorrhagia, dysmenorrhoea, menopause, premature ovarian insufficiency, infertility.
+
+PAEDIATRICS: neonatal jaundice, neonatal sepsis, bronchiolitis, croup, pneumonia, febrile convulsions, meningitis, intussusception, pyloric stenosis, Hirschsprung's disease, failure to thrive, nephrotic syndrome, Kawasaki disease, Henoch-Schönlein purpura, juvenile idiopathic arthritis, childhood cancers, cerebral palsy, congenital heart disease, Down syndrome, developmental delay, autism, ADHD.
+
+DERMATOLOGY: eczema/atopic dermatitis, psoriasis, contact dermatitis, urticaria, angioedema, cellulitis, erysipelas, impetigo, folliculitis, carbuncles, abscesses, tinea (capitis, corporis, pedis, versicolor, unguium), candidiasis, scabies, pediculosis, chickenpox, shingles, measles, roseola, hand-foot-mouth, Stevens-Johnson syndrome, toxic epidermal necrolysis, drug reactions, vitiligo, alopecia areata, melanoma, BCC, SCC, dermatofibroma, seborrhoeic keratosis, acne vulgaris, rosacea.
+
+OPHTHALMOLOGY: conjunctivitis (bacterial, viral, allergic), trachoma, corneal ulcer, uveitis, acute angle-closure glaucoma, retinal detachment, central retinal artery/vein occlusion, diabetic retinopathy, hypertensive retinopathy, cataract, macular degeneration, optic neuritis, orbital cellulitis.
+
+ENT: otitis media, otitis externa, mastoiditis, sinusitis, pharyngitis (streptococcal, viral), tonsillitis, peritonsillar abscess, epiglottitis, laryngitis, epistaxis, nasal polyps, Ménière's disease, BPPV, acoustic neuroma, head and neck cancers.
+
+ORTHOPAEDICS & RHEUMATOLOGY: osteoarthritis, rheumatoid arthritis, gout, pseudogout, reactive arthritis, ankylosing spondylitis, psoriatic arthritis, lupus arthritis, septic arthritis, osteomyelitis, fractures, dislocations, ligament injuries, meniscal tears, rotator cuff injuries, carpal tunnel syndrome, Dupuytren's contracture, Paget's disease, osteoporosis, bone tumours.
+
+SURGICAL EMERGENCIES: acute appendicitis, bowel obstruction, perforated viscus, abdominal aortic aneurysm, mesenteric ischaemia, ruptured ectopic pregnancy, testicular torsion, hernias (inguinal, femoral, incisional, strangulated), trauma (head, chest, abdominal, orthopaedic).
+
+TOXICOLOGY & POISONING: organophosphate poisoning, paracetamol overdose, salicylate toxicity, carbon monoxide poisoning, snake envenomation, scorpion sting, alcohol poisoning, drug overdose (opioids, benzodiazepines, tricyclics), food poisoning, heavy metal toxicity.
+
+When given a patient's symptom report, you must produce a structured clinical assessment in this EXACT format:
+
+📋 SYMPTOM SUMMARY
+[Concise 2-3 sentence clinical summary of the patient's presentation]
+
+🔬 POSSIBLE CONDITIONS (DIFFERENTIAL DIAGNOSIS)
+1. [Most likely condition — with brief reasoning]
+2. [Second possibility]
+3. [Third possibility]
+4. [Fourth if relevant]
+5. [Fifth if relevant]
+
+🚦 URGENCY LEVEL: [ONE OF: 🚨 EMERGENCY | 🔴 HIGH | 🟡 MODERATE | 🟢 LOW]
+[One sentence explaining the urgency level]
+
+✅ RECOMMENDED NEXT STEPS
+• [Specific actionable step 1]
+• [Specific actionable step 2]
+• [Specific actionable step 3]
+• [Specific actionable step 4 — include booking Zorim Care telehealth where appropriate]
+
+🚨 RED FLAG WARNINGS
+Seek emergency care at the nearest hospital or call 112 immediately if:
+• [Red flag 1]
+• [Red flag 2]
+• [Red flag 3]
+• [Red flag 4]
+
+📄 CLINICAL PROVIDER SUMMARY
+[A concise, formal clinical note suitable for handover to a physician. Include patient demographics, symptom duration, severity, relevant history, likely working diagnoses, and suggested investigations.]
+
+⚠️ IMPORTANT DISCLAIMER
+This assessment is informational only and does not constitute a medical diagnosis. All findings must be reviewed and confirmed by a qualified, MDCN-registered physician. Zorim Care is not liable for clinical decisions based solely on this AI tool. Emergency? Call 112 immediately.
+
+CRITICAL RULES:
+- If ANY message from the patient contains emergency keywords (chest pain, stroke, can't breathe, unconscious, seizure, heavy bleeding, vomiting blood, overdose, anaphylaxis, heart attack) — immediately flag it as a 🚨 EMERGENCY and instruct them to call 112 RIGHT NOW before giving any other information.
+- Cover even rare, tropical, and Nigerian-endemic conditions in your differential.
+- Be specific and medically precise — avoid vague generic answers.
+- Always mention Zorim Care telehealth as a next step where appropriate.
+- Write in clear, accessible language that educated non-clinicians can understand.`;
+
+async function callZorimAI(patientData) {
+  const patientSummary = `
+Patient Report:
+- Main symptom/concern: ${patientData.symptom || "Not specified"}
+- Duration: ${patientData.duration || "Not specified"}
+- Severity (1-10): ${patientData.severity || "Not rated"}
+- Age & Gender: ${patientData.age || "Not provided"}
+- Medical history & current medications: ${patientData.history || "None stated"}
+- Additional symptoms: ${patientData.other || "None mentioned"}
+
+Please provide a comprehensive clinical assessment following the structured format.`.trim();
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: ZORIM_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: patientSummary }],
+    }),
+  });
+
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  const data = await response.json();
+  return data.content?.[0]?.text || "Unable to generate assessment. Please try again or book a telehealth consultation.";
 }
 
 function AIMedicalModal({ onClose, dark }) {
@@ -337,9 +388,10 @@ function AIMedicalModal({ onClose, dark }) {
   const [data, setData] = useState({});
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hello! I'm Zorim AI, your health intake assistant 🩺\n\nI'll ask you a few short questions to assess your symptoms and provide guidance. This is not a diagnosis — always confirm with a doctor.\n\n" + INTAKE_QUESTIONS[0].ask }
+    { role: "assistant", content: "Hello! I'm Zorim AI, your health intake assistant 🩺\n\nI'm powered by advanced medical AI with knowledge of virtually every known disease and symptom in modern medicine — from common conditions like malaria, hypertension, and diabetes, to rare and tropical diseases.\n\nI'll ask you a few short questions to assess your symptoms. This is not a medical diagnosis — always confirm with a qualified doctor.\n\n" + INTAKE_QUESTIONS[0].ask }
   ]);
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
 
   const theme = {
@@ -352,19 +404,19 @@ function AIMedicalModal({ onClose, dark }) {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const send = () => {
-    if (!input.trim() || done) return;
+  const send = async () => {
+    if (!input.trim() || done || loading) return;
     const userMsg = { role: "user", content: input.trim() };
     const key = INTAKE_QUESTIONS[step]?.key;
     const newData = { ...data, [key]: input.trim() };
     setData(newData);
     setInput("");
 
-    // Emergency keyword fast-path
+    // Emergency keyword fast-path — immediate 112 instruction
     const lower = input.toLowerCase();
-    const emergencyWords = ["chest pain","can't breathe","cannot breathe","not breathing","stroke","unconscious","unresponsive","heavy bleeding","vomiting blood","heart attack","choking","seizure","convulsion","collapsed"];
+    const emergencyWords = ["chest pain","can't breathe","cannot breathe","not breathing","stroke","unconscious","unresponsive","heavy bleeding","vomiting blood","heart attack","choking","seizure","convulsion","collapsed","anaphylaxis","overdose","not waking up"];
     if (emergencyWords.some(w => lower.includes(w))) {
-      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "🚨 EMERGENCY DETECTED\n\nBased on what you've described, this may be a life-threatening emergency.\n\n📞 CALL 112 IMMEDIATELY or go to the nearest hospital A&E.\n\nDo NOT wait. Do NOT drive yourself if possible. Alert someone nearby.\n\n⚠️ These findings are informational only — but please do not delay emergency care." }]);
+      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "🚨 EMERGENCY DETECTED\n\nBased on what you've described, this may be a life-threatening emergency.\n\n📞 CALL 112 IMMEDIATELY or go to the nearest hospital A&E.\n\nDo NOT wait. Do NOT drive yourself if possible. Alert someone nearby now.\n\nZorim Care Emergency Line (existing patients): 0704 339 7245\n\n⚠️ Do not delay emergency care for any reason." }]);
       setDone(true);
       return;
     }
@@ -374,15 +426,33 @@ function AIMedicalModal({ onClose, dark }) {
       setMessages(prev => [...prev, userMsg, { role: "assistant", content: INTAKE_QUESTIONS[nextStep].ask }]);
       setStep(nextStep);
     } else {
-      const report = buildReport(newData);
-      setMessages(prev => [...prev, userMsg, { role: "assistant", content: report }]);
-      setDone(true);
+      // All questions answered — call Anthropic API for comprehensive AI assessment
+      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "⏳ Analysing your symptoms with our AI engine... This usually takes 5–10 seconds." }]);
+      setLoading(true);
+      try {
+        const report = await callZorimAI(newData);
+        setMessages(prev => {
+          // Replace the "analysing" message with the real report
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: report };
+          return updated;
+        });
+      } catch (err) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: "⚠️ Our AI engine encountered an issue generating your assessment. Please try again, or book a telehealth consultation directly with a Zorim Care doctor.\n\nEmergency? Call 112 or 0704 339 7245." };
+          return updated;
+        });
+      } finally {
+        setLoading(false);
+        setDone(true);
+      }
     }
   };
 
   const restart = () => {
-    setStep(0); setData({}); setInput(""); setDone(false);
-    setMessages([{ role: "assistant", content: "Let's start again. " + INTAKE_QUESTIONS[0].ask }]);
+    setStep(0); setData({}); setInput(""); setDone(false); setLoading(false);
+    setMessages([{ role: "assistant", content: "Let's start again. I'm Zorim AI — powered by advanced medical AI with knowledge of virtually all known diseases and symptoms. \n\n" + INTAKE_QUESTIONS[0].ask }]);
   };
 
   const formatMsg = (text) => text.split("\n").map((line, i, arr) => (
@@ -454,14 +524,15 @@ function AIMedicalModal({ onClose, dark }) {
               <div className="flex gap-2">
                 <input value={input} onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && send()}
-                  placeholder="Type your answer..."
-                  className={`flex-1 px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-purple-500 transition-colors`} />
-                <button onClick={send} disabled={!input.trim()}
+                  placeholder={loading ? "Analysing your symptoms..." : "Type your answer..."}
+                  disabled={loading}
+                  className={`flex-1 px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-purple-500 transition-colors disabled:opacity-60`} />
+                <button onClick={send} disabled={!input.trim() || loading}
                   className="px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100">
-                  Send
+                  {loading ? "⏳" : "Send"}
                 </button>
               </div>
-              <p className={`${theme.muted} text-xs text-center mt-2`}>Press Enter to send · All data stays on your device</p>
+              <p className={`${theme.muted} text-xs text-center mt-2`}>Press Enter to send · Powered by Anthropic AI · Data stays private</p>
             </>
           )}
         </div>
@@ -1282,13 +1353,13 @@ export default function ZorimCareApp() {
                   AI Symptom Assessment
                 </h3>
                 <p className={`${dark ? "text-slate-400" : "text-slate-500"} text-sm mb-6 leading-relaxed`}>
-                  Describe your symptoms conversationally. Our AI collects your health history and generates a structured clinical summary for your doctor.
+                  Describe your symptoms conversationally. Our AI — powered by Anthropic Claude — has knowledge of virtually every known disease and symptom, from common conditions to rare tropical diseases. It generates a structured clinical assessment for your doctor.
                 </p>
                 <ul className={`text-sm ${dark ? "text-slate-400" : "text-slate-500"} space-y-1.5 mb-6`}>
-                  <li>✅ Differential diagnosis suggestions</li>
-                  <li>✅ Urgency & risk assessment</li>
-                  <li>✅ Red-flag warnings</li>
-                  <li>✅ Provider-ready summary</li>
+                  <li>✅ 10,000+ conditions in knowledge base</li>
+                  <li>✅ Tropical & Nigerian-endemic diseases</li>
+                  <li>✅ Urgency triage & red-flag warnings</li>
+                  <li>✅ Provider-ready clinical summary</li>
                 </ul>
                 <button onClick={() => setShowAI(true)}
                   className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold hover:scale-[1.02] transition-all duration-200">

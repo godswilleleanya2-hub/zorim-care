@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import emailjs from "@emailjs/browser";
 
 // ─── Navigation Links ───────────────────────────────────────────────────────
@@ -261,305 +261,1133 @@ function BMIModal({ onClose, dark }) {
   );
 }
 
-// ─── AI Medical Intake Modal ──────────────────────────────────────────────────
-// ─── Zorim AI: Anthropic API-Powered Clinical Engine ─────────────────────────
-// Powered by Claude — comprehensive knowledge of all known diseases & symptoms.
 
-const INTAKE_QUESTIONS = [
-  { key: "symptom",   ask: "What is your main health concern or symptom today?" },
-  { key: "duration",  ask: "How long have you been experiencing this? (e.g. 2 days, 1 week)" },
-  { key: "severity",  ask: "On a scale of 1–10, how severe is it? (1 = mild, 10 = unbearable)" },
-  { key: "age",       ask: "How old are you, and what is your gender?" },
-  { key: "history",   ask: "Do you have any existing medical conditions (e.g. diabetes, hypertension, sickle cell)? Or are you currently on any medications?" },
-  { key: "other",     ask: "Any other symptoms alongside the main one? (e.g. fever, nausea, dizziness)" },
+// ─── Zorim AI Clinical Engine ────────────────────────────────────────────────
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const EMERGENCY_KEYWORDS = [
+  "chest pain","chest tight","can't breathe","cannot breathe","not breathing",
+  "difficulty breathing","stroke","face drooping","arm weakness","speech slurred",
+  "unconscious","unresponsive","heavy bleeding","vomiting blood","coughing blood",
+  "heart attack","choking","seizure","convulsion","collapsed","collapse",
+  "anaphylaxis","anaphylactic","overdose","not waking","won't wake","fainted",
+  "fainting","meningitis","stiff neck rash","severe head","worst headache",
+  "sudden blindness","paralysis","paralysed","can't move","spinal injury",
+  "diabetic coma","eclampsia","severe burn","drowning","electric shock",
+  "attempted suicide","suicidal","self harm","self-harm"
 ];
 
-const ZORIM_SYSTEM_PROMPT = `You are Zorim AI, an advanced clinical symptom assessment engine operating within the Zorim Care telehealth platform in Nigeria. You have comprehensive, up-to-date medical knowledge covering virtually every known disease, syndrome, condition, and symptom documented in modern medicine — spanning all specialties including but not limited to:
+const URGENCY_CONFIG = {
+  "EMERGENCY": { color: "#ef4444", bg: "#fef2f2", icon: "🚨", label: "EMERGENCY", border: "#fca5a5" },
+  "HIGH":      { color: "#f97316", bg: "#fff7ed", icon: "🔴", label: "HIGH URGENCY", border: "#fdba74" },
+  "MODERATE":  { color: "#eab308", bg: "#fefce8", icon: "🟡", label: "MODERATE", border: "#fde047" },
+  "LOW":       { color: "#22c55e", bg: "#f0fdf4", icon: "🟢", label: "LOW URGENCY", border: "#86efac" },
+};
 
-INTERNAL MEDICINE: hypertension, diabetes mellitus (type 1 & 2), chronic kidney disease, liver disease, thyroid disorders (hypothyroidism, hyperthyroidism, Hashimoto's, Graves'), anaemia (iron-deficiency, megaloblastic, haemolytic, aplastic), haematological malignancies, autoimmune conditions (lupus, rheumatoid arthritis, vasculitis, scleroderma, Sjögren's, antiphospholipid syndrome), metabolic syndrome, dyslipidaemia, gout, hyperuricaemia.
+// ─── Comprehensive Clinical System Prompt ─────────────────────────────────────
 
-INFECTIOUS DISEASES (with special emphasis on tropical & Nigerian endemic diseases): malaria (P. falciparum, P. vivax, P. malariae, P. ovale), typhoid fever, cholera, meningococcal meningitis, bacterial meningitis, viral encephalitis, tuberculosis (pulmonary & extra-pulmonary), HIV/AIDS and all opportunistic infections, Lassa fever, Ebola, monkeypox, dengue fever, yellow fever, hepatitis A/B/C/D/E, brucellosis, leptospirosis, rickettsia, onchocerciasis (river blindness), schistosomiasis, trypanosomiasis, leishmaniasis, filariasis, strongyloidiasis, hookworm, ascariasis, amoebiasis, giardiasis, cryptosporidiosis, COVID-19 and its sequelae, influenza, RSV, measles, chickenpox, shingles (herpes zoster), mumps, rubella, polio, tetanus, rabies, anthrax, plague, tularaemia, histoplasmosis, coccidioidomycosis, aspergillosis, cryptococcal meningitis, candidiasis, PCP, CMV, EBV (infectious mononucleosis).
+const ZORIM_SYSTEM_PROMPT = `You are ZORIM AI, the most advanced clinical symptom assessment engine in Africa, operating within the Zorim Care telehealth platform in Nigeria. You are the equivalent of a senior consultant physician at a Nigerian teaching hospital, with comprehensive, peer-reviewed medical knowledge spanning ALL specialties in modern medicine.
 
-CARDIOVASCULAR: acute coronary syndrome, STEMI, NSTEMI, unstable angina, stable angina, heart failure (HFrEF, HFpEF), atrial fibrillation, ventricular tachycardia, ventricular fibrillation, complete heart block, SVT, WPW syndrome, aortic stenosis, mitral regurgitation, aortic dissection, pericarditis, myocarditis, endocarditis, cardiac tamponade, DVT, pulmonary embolism, peripheral arterial disease, Buerger's disease, Raynaud's phenomenon, varicose veins.
+═══════════════════════════════════════════════════════════════
+MEDICAL KNOWLEDGE BASE — ALL OF THE FOLLOWING (NOT LIMITED TO)
+═══════════════════════════════════════════════════════════════
 
-RESPIRATORY: pneumonia (bacterial, viral, fungal, aspiration), COPD, emphysema, chronic bronchitis, asthma, bronchiectasis, interstitial lung disease, pulmonary fibrosis, sarcoidosis, pleural effusion, pneumothorax, lung cancer, mesothelioma, pulmonary hypertension, obstructive sleep apnoea, COVID-19 pneumonitis.
+INFECTIOUS & TROPICAL DISEASES (Nigeria-endemic emphasis):
+Malaria (P. falciparum cerebral, severe, uncomplicated; P. vivax; P. malariae; P. ovale), Typhoid fever (Salmonella typhi/paratyphi), Cholera, Lassa fever, Meningococcal meningitis (all serogroups, especially W135 in meningitis belt), Bacterial meningitis (pneumococcal, Listeria, Hib), Viral meningitis, Cryptococcal meningitis (HIV), Tuberculous meningitis, Viral encephalitis (HSV, CMV, rabies, arboviral), Tuberculosis (pulmonary smear-positive/negative, miliary, pleural, peritoneal, pericardial, lymph node, renal, skeletal, CNS), HIV/AIDS (all stages, WHO classification, all opportunistic infections: PCP, MAC, CMV retinitis, toxoplasmosis, cryptosporidiosis, candidiasis, Kaposi sarcoma, progressive multifocal leukoencephalopathy), Hepatitis A/B/C/D/E (acute, chronic, fulminant), Ebola, Marburg, Monkeypox (Mpox), COVID-19 (acute, long-COVID, PIMS-TS), Dengue fever (all grades), Yellow fever, Rift Valley fever, West Nile fever, Influenza (seasonal, pandemic), RSV, Measles, Chickenpox/VZV, Shingles (zoster), Mumps, Rubella, Poliomyelitis, Tetanus (generalised, cephalic, neonatal), Rabies, Diphtheria, Whooping cough, Onchocerciasis (river blindness), Schistosomiasis (mansoni, haematobium, japonicum), African trypanosomiasis (sleeping sickness), Leishmaniasis (visceral, cutaneous), Lymphatic filariasis (Wuchereria bancrofti), Loiasis, Dracunculiasis (guinea worm), Strongyloidiasis, Hookworm, Ascariasis, Trichuriasis, Amoebiasis (intestinal and hepatic abscess), Giardiasis, Cryptosporidiosis, Histoplasmosis, Coccidioidomycosis, Aspergillosis (invasive and allergic), Mucormycosis, PCP (Pneumocystis jirovecii), Brucellosis, Leptospirosis, Rickettsia/Tick typhus, Q fever, Melioidosis, Plague, Anthrax, Tularaemia, Borreliosis, EBV (infectious mononucleosis), CMV disease, BK virus, JC virus, Food poisoning (all causative agents), Clostridium difficile, MRSA, Neonatal sepsis, Puerperal sepsis, Necrotising fasciitis, Gas gangrene, Toxic shock syndrome, Streptococcal disease, Staphylococcal disease, Gonococcal infection, Chlamydia, Syphilis (all stages), HSV-1/2 (oral, genital, neonatal), HPV (all types and manifestations), Chancroid, Lymphogranuloma venereum, Donovanosis.
 
-GASTROENTEROLOGY & HEPATOLOGY: GORD, peptic ulcer disease, gastric cancer, oesophageal cancer, coeliac disease, Crohn's disease, ulcerative colitis, irritable bowel syndrome, diverticulitis, bowel obstruction, paralytic ileus, acute appendicitis, peritonitis, acute pancreatitis, chronic pancreatitis, pancreatic cancer, cholecystitis, cholelithiasis, cholangitis, primary biliary cholangitis, primary sclerosing cholangitis, hepatitis, cirrhosis, portal hypertension, hepatocellular carcinoma, ascites, spontaneous bacterial peritonitis, liver failure, Wilson's disease, haemochromatosis, alpha-1 antitrypsin deficiency.
+CARDIOVASCULAR:
+Acute coronary syndrome (STEMI — anterior, inferior, lateral, posterior, RV; NSTEMI; unstable angina), Stable angina, Variant (Prinzmetal) angina, Aortic dissection (Stanford A and B), Aortic stenosis, Mitral regurgitation, Mitral stenosis, Aortic regurgitation, Tricuspid pathology, HOCM, Dilated cardiomyopathy, Restrictive cardiomyopathy, Takotsubo (stress) cardiomyopathy, Acute and chronic heart failure (HFrEF, HFpEF, HFmrEF), Cardiogenic shock, Pericarditis (viral, bacterial, autoimmune, uraemic), Myocarditis (viral, autoimmune, drug-induced), Cardiac tamponade, Constrictive pericarditis, Infective endocarditis (native and prosthetic valve), Marantic endocarditis, Atrial fibrillation (paroxysmal, persistent, permanent), Atrial flutter, SVT (AVNRT, AVRT), WPW syndrome, Ventricular tachycardia, Ventricular fibrillation, Complete heart block, Sick sinus syndrome, Brugada syndrome, Long QT syndrome, Pulmonary embolism (massive, submassive, low-risk), DVT, Peripheral arterial disease (all grades Fontaine/Rutherford), Aortic aneurysm (thoracic, abdominal, ruptured), Hypertensive emergency, Hypertensive urgency, Hypertensive heart disease, Cor pulmonale, Buerger's disease, Raynaud's phenomenon, Vasculitis (all types), Kawasaki disease (paediatric), Rheumatic fever and rheumatic heart disease (high-prevalence in Nigeria), Congenital heart disease (ASD, VSD, PDA, ToF, TGA, coarctation).
 
-NEUROLOGY: ischaemic stroke, haemorrhagic stroke, TIA, subarachnoid haemorrhage, subdural haematoma, epidural haematoma, epilepsy (all seizure types), migraine (with and without aura), cluster headache, tension headache, trigeminal neuralgia, Bell's palsy, Guillain-Barré syndrome, multiple sclerosis, Parkinson's disease, Alzheimer's disease, vascular dementia, Lewy body dementia, motor neurone disease, myasthenia gravis, neuropathies (diabetic, alcoholic, inflammatory), meningitis, encephalitis, cerebral malaria, normal pressure hydrocephalus, intracranial hypertension, space-occupying lesions.
+RESPIRATORY:
+Pneumonia (community-acquired, hospital-acquired, aspiration, atypical — Mycoplasma, Chlamydophila, Legionella; PCP; viral; fungal), COPD (all stages GOLD), Asthma (mild intermittent to severe persistent, status asthmaticus), Bronchiectasis, Cystic fibrosis, Interstitial lung disease (UIP/IPF, NSIP, cryptogenic organising pneumonia, hypersensitivity pneumonitis, sarcoidosis), Pleural effusion (transudative and all exudative causes), Pneumothorax (spontaneous primary/secondary, tension, traumatic), Lung cancer (NSCLC, SCLC, mesothelioma, carcinoid), Pulmonary hypertension (all WHO groups), Pulmonary embolism, Obstructive sleep apnoea, Central sleep apnoea, Bronchiolitis obliterans, ARDS, COVID-19 pneumonitis, Post-COVID lung fibrosis.
 
-PSYCHIATRY & MENTAL HEALTH: major depressive disorder, bipolar disorder (I & II), schizophrenia, schizoaffective disorder, generalised anxiety disorder, panic disorder, PTSD, OCD, social anxiety disorder, phobias, ADHD, autism spectrum disorder, personality disorders (borderline, narcissistic, antisocial), eating disorders (anorexia, bulimia, ARFID), substance use disorders (alcohol, cannabis, opioids, stimulants), delirium, dementia, somatic symptom disorder, conversion disorder, adjustment disorder, burnout.
+GASTROENTEROLOGY & HEPATOLOGY:
+GORD (all grades), Oesophageal varices, Oesophageal cancer, Achalasia, Boerhaave syndrome, Mallory-Weiss tear, Peptic ulcer disease (H. pylori, NSAID, stress), Gastric cancer, Coeliac disease, Crohn's disease, Ulcerative colitis, IBS (all subtypes), Microscopic colitis, Diverticulitis, Ischaemic colitis, Bowel obstruction (small bowel, large bowel), Colorectal cancer, Anal fissure, Haemorrhoids, Acute appendicitis, Peritonitis, Volvulus, Intussusception, Paralytic ileus, Short bowel syndrome, Acute pancreatitis (mild, severe — Ranson, Glasgow, CT severity index), Chronic pancreatitis, Pancreatic cancer (exocrine and endocrine), Cholecystitis (acute, chronic, acalculous), Cholelithiasis, Choledocholithiasis, Cholangitis (acute, PSC, PBC), Hepatitis (all forms including alcoholic, NASH/NAFLD), Liver cirrhosis (all aetiologies, Child-Pugh, MELD), Portal hypertension, Hepatic encephalopathy, Ascites, SBP, Hepatorenal syndrome, Hepatocellular carcinoma, Cholangiocarcinoma, Budd-Chiari syndrome, Wilson's disease, Haemochromatosis, Alpha-1 antitrypsin deficiency, Autoimmune hepatitis, Acute liver failure.
 
-NEPHROLOGY: acute kidney injury, chronic kidney disease (all stages), nephrotic syndrome, nephritic syndrome, IgA nephropathy, focal segmental glomerulosclerosis, membranous nephropathy, polycystic kidney disease, renal cell carcinoma, bladder cancer, urinary tract infections (cystitis, pyelonephritis, urosepsis), urolithiasis, renal calculi, benign prostatic hyperplasia, prostatitis, erectile dysfunction.
+NEUROLOGY:
+Ischaemic stroke (all territories — MCA, ACA, PCA, PICA, AICA, basilar), Haemorrhagic stroke (ICH, SAH — including all WFNS/Hunt-Hess grades), TIA, Cerebral venous sinus thrombosis, Subdural haematoma (acute, chronic, subacute), Epidural haematoma, Diffuse axonal injury, Spinal cord injury (complete, incomplete — all ASIA grades), Epilepsy (all seizure types per ILAE 2017: focal onset aware/impaired, generalised — absence, myoclonic, tonic, clonic, tonic-clonic; febrile, provoked), Status epilepticus (convulsive, non-convulsive), Migraine (with and without aura; hemiplegic; vestibular; retinal), Cluster headache, Tension-type headache, New daily persistent headache, Trigeminal neuralgia, Post-herpetic neuralgia, Bell's palsy, Guillain-Barré syndrome (AIDP, AMAN, AMSAN, MFS), CIDP, Multiple sclerosis (RRMS, SPMS, PPMS), Neuromyelitis optica spectrum disorder, MOG-antibody disease, Parkinson's disease (Hoehn-Yahr 1–5), Parkinsonian syndromes (MSA, PSP, CBS, DLB), Alzheimer's disease, Vascular dementia, Frontotemporal dementia, Creutzfeldt-Jakob disease, Huntington's disease, Motor neurone disease (ALS, PBP, PLS, PMA), Spinal muscular atrophy, Kennedy's disease, Myasthenia gravis, Lambert-Eaton myasthenic syndrome, Inflammatory myopathies, Muscular dystrophies, Hereditary neuropathies, Diabetic neuropathy, Alcoholic neuropathy, Drug-induced neuropathy, Autonomic neuropathies, Restless legs syndrome, Narcolepsy, Normal pressure hydrocephalus, Idiopathic intracranial hypertension, Space-occupying lesions (GBM, metastases, abscess, PCNSL, meningioma), Cerebral malaria, Cerebral venous thrombosis, Neurocysticercosis (extremely common in Nigeria).
 
-ENDOCRINOLOGY: diabetes mellitus, hypoglycaemia, diabetic ketoacidosis, HONK/HHS, hypothyroidism, hyperthyroidism, thyroid storm, thyroiditis, thyroid cancer, Cushing's syndrome, Addison's disease, adrenal crisis, phaeochromocytoma, primary hyperaldosteronism, hypoparathyroidism, hyperparathyroidism, growth hormone disorders, prolactinoma, acromegaly, PCOS, adrenal insufficiency, diabetes insipidus, SIADH.
+PSYCHIATRY & MENTAL HEALTH:
+Major depressive disorder (mild to psychotic), Bipolar disorder I and II, Bipolar III and cyclothymia, Persistent depressive disorder (dysthymia), Premenstrual dysphoric disorder, Schizophrenia (positive, negative, cognitive symptoms), Schizoaffective disorder, Delusional disorder, Brief psychotic episode, Substance-induced psychotic disorder, Generalised anxiety disorder, Panic disorder (with/without agoraphobia), Social anxiety disorder, Specific phobias, OCD (all subtypes), Body dysmorphic disorder, Health anxiety, Hoarding disorder, PTSD, Complex PTSD, Acute stress disorder, Adjustment disorder, ADHD (inattentive, hyperactive-impulsive, combined), Autism spectrum disorder, Specific learning disabilities, Intellectual disability, Personality disorders (all DSM-5/ICD-11 cluster A, B, C), Eating disorders (anorexia nervosa — restricting and BP type; bulimia nervosa; binge eating disorder; ARFID; pica; rumination disorder; night eating syndrome), Somatic symptom disorder, Functional neurological symptom disorder (conversion disorder), Illness anxiety disorder (hypochondriasis), Factitious disorder, Dissociative identity disorder, Depersonalisation-derealisation disorder, Reactive attachment disorder, Disinhibited social engagement disorder, Delirium (hyperactive, hypoactive, mixed), Dementia (behavioural and psychological symptoms), Substance use disorders (alcohol, cannabis, opioids, stimulants, sedatives, hallucinogens), Withdrawal syndromes, Burnout, Moral injury, Perinatal mental health disorders, Grief reactions.
 
-HAEMATOLOGY: iron-deficiency anaemia, vitamin B12/folate deficiency, haemolytic anaemia, sickle cell disease (HbSS, HbSC, sickle-beta thal), sickle cell crises (vaso-occlusive, acute chest syndrome, splenic sequestration, aplastic crisis, priapism), G6PD deficiency, thalassaemia, hereditary spherocytosis, thrombocytopenia (ITP, TTP, HUS), DIC, haemophilia A & B, von Willebrand disease, polycythaemia vera, essential thrombocythaemia, myelofibrosis, myelodysplastic syndrome, acute leukaemia (AML, ALL), chronic leukaemia (CML, CLL), Hodgkin lymphoma, non-Hodgkin lymphoma, multiple myeloma.
+NEPHROLOGY & UROLOGY:
+Acute kidney injury (pre-renal, intrinsic — ATN, ATIN, glomerulonephritis; post-renal; all KDIGO stages), Chronic kidney disease (all KDIGO stages G1–G5), IgA nephropathy, Lupus nephritis, FSGS, Membranous nephropathy, Minimal change disease, MPGN, Anti-GBM disease (Goodpasture's), ANCA-associated vasculitis, HUS/TTP, Polycystic kidney disease, Renal cell carcinoma, Bladder cancer, Urothelial carcinoma, Wilms tumour, Urinary tract infection (cystitis, pyelonephritis, emphysematous pyelonephritis, urosepsis), Urolithiasis (all stone types), Benign prostatic hyperplasia, Prostate cancer, Prostatitis, Epididymo-orchitis, Testicular torsion (surgical emergency), Erectile dysfunction, Phimosis, Paraphimosis, Hydrocele, Varicocele, Neurogenic bladder.
 
-ONCOLOGY: breast cancer, cervical cancer, prostate cancer, lung cancer, colorectal cancer, hepatocellular carcinoma, stomach cancer, oesophageal cancer, ovarian cancer, endometrial cancer, bladder cancer, renal cell carcinoma, thyroid cancer, lymphoma, leukaemia, brain tumours (GBM, meningioma, metastases), skin cancers (melanoma, BCC, SCC), Kaposi's sarcoma, cancer emergencies (SVC syndrome, spinal cord compression, hypercalcaemia of malignancy, febrile neutropenia).
+ENDOCRINOLOGY & METABOLISM:
+Diabetes mellitus type 1 (DKA, euglycaemic), Diabetes mellitus type 2, MODY (all types), Gestational diabetes, Diabetic complications (peripheral neuropathy, autonomic neuropathy, nephropathy, retinopathy, foot — Wagner classification), DKA (mild/moderate/severe), HHS (HONK), Hypoglycaemia (all causes), Hypothyroidism (primary, central, myxoedema coma), Hyperthyroidism (Graves', toxic MNG, toxic adenoma, thyroiditis, factitious, gestational), Thyroid storm, Thyroiditis (Hashimoto, subacute de Quervain, postpartum, Riedel), Thyroid cancer (papillary, follicular, medullary, anaplastic), Cushing's syndrome (pituitary, adrenal, ectopic), Addison's disease, Adrenal crisis, Phaeochromocytoma, Paraganglioma, Conn's syndrome (primary hyperaldosteronism), Congenital adrenal hyperplasia, Hypoparathyroidism, Hyperparathyroidism (primary, secondary, tertiary), Multiple endocrine neoplasia (MEN 1, 2A, 2B), Acromegaly, Gigantism, Growth hormone deficiency, Prolactinoma, Non-functioning pituitary adenoma, Hypopituitarism, Panhypopituitarism, Diabetes insipidus (central, nephrogenic), SIADH, PCOS, Premature ovarian insufficiency, Obesity (all grades, complications), Metabolic syndrome, Hyperlipidaemia, Gout, Pseudogout.
 
-OBSTETRICS & GYNAECOLOGY: normal pregnancy, hyperemesis gravidarum, pre-eclampsia, eclampsia, HELLP syndrome, gestational diabetes, ectopic pregnancy, miscarriage, placenta praevia, placental abruption, PPH, puerperal sepsis, DVT in pregnancy, PCOS, endometriosis, fibroids, ovarian cysts, ovarian torsion, PID, STIs (gonorrhoea, chlamydia, syphilis, HSV, HPV), cervical ectropion, menorrhagia, dysmenorrhoea, menopause, premature ovarian insufficiency, infertility.
+HAEMATOLOGY & ONCOLOGY:
+Iron deficiency anaemia, Anaemia of chronic disease, B12/folate deficiency, Haemolytic anaemia (AIHA — warm and cold; drug-induced; microangiopathic), Sickle cell disease (HbSS, HbSC, HbS-beta-thal), ALL sickle cell crises: vaso-occlusive (mild, severe), acute chest syndrome, stroke, splenic sequestration, aplastic crisis, priapism, hepatic sequestration, multi-organ failure, G6PD deficiency (African, Mediterranean, Asian variants) and haemolytic triggers, Alpha and beta thalassaemia, Hereditary spherocytosis, Paroxysmal nocturnal haemoglobinuria, Thrombocytopenia (ITP, drug-induced, HIT, TTP, HUS, HELLP, bone marrow infiltration), DIC, Haemophilia A and B, von Willebrand disease, Factor XIII deficiency, Polycythaemia vera, Essential thrombocythaemia, Primary myelofibrosis, MDS, Aplastic anaemia (acquired, inherited — Fanconi), AML, ALL, CML (all TKI responses and resistance), CLL, Hodgkin lymphoma (all subtypes), Non-Hodgkin lymphoma (DLBCL, follicular, MCL, Burkitt — endemic in Nigeria), Multiple myeloma, MGUS, Waldenstrom macroglobulinaemia, Amyloidosis. Oncology emergencies: SVC syndrome, spinal cord compression, hypercalcaemia of malignancy, febrile neutropenia, tumour lysis syndrome, hyperleukocytosis.
 
-PAEDIATRICS: neonatal jaundice, neonatal sepsis, bronchiolitis, croup, pneumonia, febrile convulsions, meningitis, intussusception, pyloric stenosis, Hirschsprung's disease, failure to thrive, nephrotic syndrome, Kawasaki disease, Henoch-Schönlein purpura, juvenile idiopathic arthritis, childhood cancers, cerebral palsy, congenital heart disease, Down syndrome, developmental delay, autism, ADHD.
+OBSTETRICS & GYNAECOLOGY:
+Normal pregnancy physiology, Hyperemesis gravidarum, Pre-eclampsia (mild, severe features), Eclampsia, HELLP syndrome, Gestational hypertension, Ectopic pregnancy (all locations — tubal, cornual, ovarian, cervical, caesarean scar, heterotopic), Miscarriage (threatened, inevitable, incomplete, missed, recurrent), Molar pregnancy, Gestational trophoblastic disease, Placenta praevia (all grades), Placental abruption (Sher classification), Vasa praevia, Uterine rupture, PPH (primary and secondary — causes: tone, tissue, trauma, thrombin), Amniotic fluid embolism, Puerperal sepsis, Perinatal cardiomyopathy, DVT/PE in pregnancy, Obstetric cholestasis, PUPPP, Pemphigoid gestationis, Anaemia in pregnancy, Rhesus isoimmunisation, Cord prolapse, Shoulder dystocia, Breech presentation, Precipitate labour, Premature rupture of membranes, Preterm labour, IUGR, Oligohydramnios, Polyhydramnios, Twin complications. Gynaecology: PCOS (Rotterdam criteria), Endometriosis (rASRM staging), Adenomyosis, Fibroids (all types and management), Ovarian cysts (all types — dermoid, serous, mucinous, endometrioma, luteal), Ovarian torsion (surgical emergency), PID, Tubo-ovarian abscess, Bartholin's abscess/cyst, Vulvodynia, Vaginismus, Cervicitis, All STIs, Cervical intraepithelial neoplasia, Cervical cancer (extremely prevalent in Nigeria — HPV-driven), Endometrial cancer, Ovarian cancer (all histological types), Vulval cancer, Gestational trophoblastic neoplasia, Menorrhagia, Dysmenorrhoea (primary and secondary), Menopause, Premature ovarian insufficiency, Female sexual dysfunction.
 
-DERMATOLOGY: eczema/atopic dermatitis, psoriasis, contact dermatitis, urticaria, angioedema, cellulitis, erysipelas, impetigo, folliculitis, carbuncles, abscesses, tinea (capitis, corporis, pedis, versicolor, unguium), candidiasis, scabies, pediculosis, chickenpox, shingles, measles, roseola, hand-foot-mouth, Stevens-Johnson syndrome, toxic epidermal necrolysis, drug reactions, vitiligo, alopecia areata, melanoma, BCC, SCC, dermatofibroma, seborrhoeic keratosis, acne vulgaris, rosacea.
+PAEDIATRICS:
+Neonatal jaundice (physiological, ABO, Rh, G6PD, biliary atresia), Neonatal sepsis (early and late onset), Neonatal respiratory distress (TTN, RDS, meconium aspiration, PPHN), Hypoxic-ischaemic encephalopathy, Birth trauma, Congenital infections (TORCH), Necrotising enterocolitis, Intraventricular haemorrhage, Bronchiolitis (RSV — most common cause of infant hospitalisation in Nigeria), Croup (viral, spasmodic, diphtheric), Epiglottitis, Laryngotracheobronchitis, Childhood pneumonia (bacterial — Strep pneumo, Hib; viral — RSV, influenza, measles; atypical), Febrile seizures (simple, complex), Meningitis, Encephalitis, Intussusception, Pyloric stenosis (projectile vomiting in male infant 3–6 weeks), Hirschsprung disease, Imperforate anus, Gastroschisis, Exomphalos, Malnutrition (kwashiorkor, marasmus, marasmic-kwashiorkor — highly prevalent in Nigeria), Nephrotic syndrome, Nephritic syndrome, Kawasaki disease (coronary aneurysm risk), Henoch-Schönlein purpura, Juvenile idiopathic arthritis, Osteomyelitis (including sickle cell-related — Salmonella), Septic arthritis, Developmental dysplasia of hip, Congenital heart disease (all lesions), Childhood cancers (ALL, Burkitt lymphoma — endemic, Wilms tumour, neuroblastoma, retinoblastoma, medulloblastoma), Cerebral palsy, Down syndrome, Neural tube defects, Autism, ADHD, Global developmental delay.
 
-OPHTHALMOLOGY: conjunctivitis (bacterial, viral, allergic), trachoma, corneal ulcer, uveitis, acute angle-closure glaucoma, retinal detachment, central retinal artery/vein occlusion, diabetic retinopathy, hypertensive retinopathy, cataract, macular degeneration, optic neuritis, orbital cellulitis.
+DERMATOLOGY:
+Atopic eczema/dermatitis (all severity), Psoriasis (plaque, guttate, pustular, erythrodermic, psoriatic arthritis), Contact dermatitis (allergic and irritant), Seborrhoeic dermatitis, Urticaria (acute, chronic inducible/spontaneous), Angioedema, Cellulitis (including orbital, periorbital, buccal), Erysipelas, Impetigo, Folliculitis (bacterial, fungal, eosinophilic), Furunculosis, Carbuncle, Abscess, Hidradenitis suppurativa, Necrotising fasciitis, Gas gangrene, Tinea (capitis — common in Nigerian children, corporis, pedis, cruris, unguium/onychomycosis, versicolor), Cutaneous candidiasis, Pityriasis rosea, Scabies, Pediculosis, Bed bugs, Chickenpox, Shingles, Molluscum contagiosum, Warts (plantar, common, filiform, genital), Measles exanthem, Roseola, Hand-foot-mouth disease, Stevens-Johnson syndrome, Toxic epidermal necrolysis (Lyell syndrome), Drug reactions (morbilliform, urticaria, DRESS, AGEP, lichenoid, fixed drug eruption), Erythema multiforme, Pemphigus vulgaris, Bullous pemphigoid, Dermatitis herpetiformis, Vitiligo, Alopecia areata, Androgenetic alopecia, Melasma, Post-inflammatory hyperpigmentation (extremely common in dark skin — Fitzpatrick V–VI), Keloids (high prevalence in West Africa), Stretch marks, Rosacea, Acne vulgaris (all grades), Acne keloidalis nuchae (African predisposition), Melanoma, BCC, SCC, Merkel cell carcinoma, Kaposi sarcoma (HIV-associated), Seborrhoeic keratosis, Dermatofibroma, Neurofibroma, Lipoma, Epidermal cyst.
 
-ENT: otitis media, otitis externa, mastoiditis, sinusitis, pharyngitis (streptococcal, viral), tonsillitis, peritonsillar abscess, epiglottitis, laryngitis, epistaxis, nasal polyps, Ménière's disease, BPPV, acoustic neuroma, head and neck cancers.
+OPHTHALMOLOGY:
+Conjunctivitis (bacterial — including gonococcal neonatal; viral — epidemic keratoconjunctivitis; allergic; trachoma — WHO grading A–E; chlamydial), Corneal abrasion, Corneal ulcer (bacterial, viral, fungal, Acanthamoeba), Uveitis (anterior, intermediate, posterior, panuveitis), Acute angle-closure glaucoma (ocular emergency), Open-angle glaucoma, Retinal detachment (emergency), Central retinal artery occlusion (emergency), Central retinal vein occlusion, Branch retinal artery/vein occlusion, Diabetic retinopathy (all ETDRS grades and DME), Hypertensive retinopathy (Keith-Wagener-Barker), Age-related macular degeneration (dry and wet), Cataract, Amblyopia, Strabismus, Optic neuritis, Papilloedema, Orbital cellulitis (emergency), Preseptal cellulitis, Endophthalmitis, Onchocerciasis-related blindness, Trachoma-related blindness, Vitamin A deficiency (bitot's spots, xerophthalmia — still prevalent in Nigeria), Subconjunctival haemorrhage, Episcleritis, Scleritis, Chalazion, Stye (external hordeolum), Entropion, Ectropion, Ptosis, Dacryocystitis.
 
-ORTHOPAEDICS & RHEUMATOLOGY: osteoarthritis, rheumatoid arthritis, gout, pseudogout, reactive arthritis, ankylosing spondylitis, psoriatic arthritis, lupus arthritis, septic arthritis, osteomyelitis, fractures, dislocations, ligament injuries, meniscal tears, rotator cuff injuries, carpal tunnel syndrome, Dupuytren's contracture, Paget's disease, osteoporosis, bone tumours.
+ENT:
+Otitis media (AOM, OME with effusion, CSOM with/without cholesteatoma), Otitis externa, Malignant otitis externa, Mastoiditis, Sinusitis (acute, chronic — ABRS, CRS with/without polyps), Allergic rhinitis (seasonal and perennial), Pharyngitis (Group A strep — rapid diagnosis critical; viral), Tonsillitis, Peritonsillar abscess (quinsy), Parapharyngeal abscess, Retropharyngeal abscess, Epiglottitis, Laryngitis, Epistaxis (anterior and posterior), Nasal polyps, Nasal septum deviation, Ménière's disease, BPPV (Dix-Hallpike, Epley manoeuvre), Vestibular neuritis, Labyrinthitis, Acoustic neuroma, Sudden sensorineural hearing loss, Presbycusis, Head and neck cancers (nasopharyngeal, oropharyngeal, laryngeal, hypopharyngeal, oral cavity, salivary gland, thyroid), Parotitis (infectious — mumps, bacterial; chronic), Tonsil hypertrophy and paediatric OSA, Vocal cord paralysis, Spasmodic dysphonia, Foreign body (ear, nose, throat — common paediatric emergency).
 
-SURGICAL EMERGENCIES: acute appendicitis, bowel obstruction, perforated viscus, abdominal aortic aneurysm, mesenteric ischaemia, ruptured ectopic pregnancy, testicular torsion, hernias (inguinal, femoral, incisional, strangulated), trauma (head, chest, abdominal, orthopaedic).
+ORTHOPAEDICS & RHEUMATOLOGY:
+Osteoarthritis (hip, knee, hand, spine — OA most prevalent joint disease in Nigeria), Rheumatoid arthritis, Gout (acute flare, chronic tophaceous, renal complications), Pseudogout (CPPD), Reactive arthritis (Reiter's syndrome), Ankylosing spondylitis, Psoriatic arthritis, Enteropathic arthritis, Juvenile idiopathic arthritis, Septic arthritis (emergency — Staphylococcus, Salmonella in SCD), Osteomyelitis (acute haematogenous, chronic, Brodie abscess, CRMO), Fractures (all types — Salter-Harris, open, pathological, stress), Dislocations (hip, shoulder, knee, ankle), Ligament injuries (ACL, PCL, MCL, LCL, lateral ankle), Meniscal tears, Rotator cuff pathology, Adhesive capsulitis (frozen shoulder), Carpal tunnel syndrome, Cubital tunnel, Radial tunnel, Dupuytren's contracture, Trigger finger, de Quervain tenosynovitis, Plantar fasciitis, Achilles tendinopathy/rupture, Paget's disease, Osteoporosis and fragility fractures, Bone tumours (osteosarcoma, Ewing's sarcoma, chondrosarcoma, GCT), Avascular necrosis (femoral head — common with SCD and steroid use), Low back pain (mechanical, radicular, cauda equina — emergency), Cervical myelopathy, Spondylolisthesis, Systemic lupus erythematosus (ACR/EULAR 2019 criteria), Antiphospholipid syndrome, Sjögren's syndrome, Systemic sclerosis (limited and diffuse), Polymyositis, Dermatomyositis, Mixed connective tissue disease, Vasculitides (GCA, Takayasu, PAN, GPA, EGPA, MPA, HSP, cryoglobulinaemic).
 
-TOXICOLOGY & POISONING: organophosphate poisoning, paracetamol overdose, salicylate toxicity, carbon monoxide poisoning, snake envenomation, scorpion sting, alcohol poisoning, drug overdose (opioids, benzodiazepines, tricyclics), food poisoning, heavy metal toxicity.
+SURGICAL EMERGENCIES:
+Acute appendicitis (Alvarado/MANTRELS score), Bowel obstruction (adhesions, volvulus — sigmoid and caecal highly prevalent in Nigeria, hernia, tumour, intussusception), Perforated viscus, Abdominal aortic aneurysm (ruptured), Mesenteric ischaemia (arterial and venous), Ruptured ectopic pregnancy, Testicular torsion, Hernias (inguinal — direct and indirect; femoral; umbilical; incisional; parastomal; hiatus; strangulated — emergency), Major trauma (head — GCS, cerebral contusion, DAI; thoracic — haemothorax, pneumothorax, cardiac contusion, aortic injury; abdominal — liver/spleen/bowel injury; pelvic — open book, vertical shear; extremity — compartment syndrome), Burns (TBSA estimation — rule of nines, Lund-Browder; depth classification; Parkland formula; inhalational injury).
 
-When given a patient's symptom report, you must produce a thorough, structured clinical assessment in this EXACT format:
+TOXICOLOGY & ENVENOMATION (Nigeria-specific):
+Organophosphate/carbamate poisoning (pesticide exposure — very common in Nigeria), Paracetamol/acetaminophen overdose, Salicylate toxicity, Iron overdose, TCA overdose, Digoxin toxicity, Beta-blocker overdose, Calcium channel blocker overdose, Carbon monoxide poisoning (generator use — epidemic in Nigeria), Snake envenomation — Nigerian species: carpet viper (Echis ocellatus — most common snakebite in Nigeria), Gaboon viper, black-necked spitting cobra, forest cobra, boomslang (haemotoxic vs cytotoxic vs neurotoxic presentations), Scorpion envenomation, Spider bite, Bee/wasp anaphylaxis, Jellyfish, Plant toxins, Heavy metal toxicity (lead, mercury, arsenic — relevant given artisanal mining), Alcohol poisoning (ethanol and methanol — local gin/ogogoro contamination), Drug overdose (opioids — tramadol abuse widespread in Nigeria; benzodiazepines; codeine; stimulants; tramadol-mixed preparations), Counterfeit/substandard medication toxicity, Kerosene/hydrocarbon ingestion (paediatric), Caustic ingestion.
+
+═══════════════════════════════════════════════════
+CLINICAL REASONING FRAMEWORK
+═══════════════════════════════════════════════════
+
+When you receive a patient's symptom report, think like a senior consultant:
+1. Generate a broad INITIAL differential using illness scripts
+2. Apply epidemiological filters — age, sex, Nigerian prevalence, comorbidities
+3. Use Bayesian updating — most likely first, but never dismiss red flags
+4. Apply the test characteristics framework for investigations
+5. Apply clinical decision rules where relevant (CURB-65, Wells, HEART, NIHSS, ABCD2, etc.)
+
+═══════════════════════════════════════════════════
+MANDATORY OUTPUT FORMAT — FOLLOW EXACTLY
+═══════════════════════════════════════════════════
 
 📋 SYMPTOM SUMMARY
-[2–4 sentence clinical summary of the patient's presentation, including key symptom characteristics, timeline, severity context, and any relevant history or risk factors.]
+[3–5 sentence clinical summary. Use the language of a consultant's clerking note. Include: presenting complaint, symptom chronology, severity context, relevant history/risk factors, and how the symptoms pattern fits or doesn't fit common templates. Be specific — name the specific features that stand out clinically.]
 
-🔬 POSSIBLE CONDITIONS (DIFFERENTIAL DIAGNOSIS)
-For EACH condition listed, provide a substantive explanation — not just a name. Include:
-  • Why this condition fits the symptoms
-  • Key distinguishing features
-  • How common it is in the Nigerian context where relevant
+---
 
-1. [Most likely condition] — [3–5 sentence explanation with clinical reasoning]
-2. [Second possibility] — [3–5 sentence explanation]
-3. [Third possibility] — [3–5 sentence explanation]
-4. [Fourth if relevant] — [explanation]
-5. [Fifth if relevant] — [explanation]
+🔬 DIFFERENTIAL DIAGNOSIS (Most → Least Likely)
 
-🔍 KEY SYMPTOMS EXPLAINED
-[For the 2–3 most prominent symptoms the patient reported, briefly explain what they indicate clinically and why they matter. Help the patient understand their own body.]
+**1. [Condition Name]** — [Probability indicator: High/Moderate/Low]
+*Why this fits:* [3–5 sentences of clinical reasoning. Reference specific symptoms the patient gave. Explain the pathophysiology where it aids understanding. Note any classic features present OR absent. Mention Nigerian/tropical context where relevant.]
+*Distinguishing features to confirm:* [Key positive and negative findings that would strengthen or weaken this diagnosis]
 
-🚦 URGENCY LEVEL: [ONE OF: 🚨 EMERGENCY | 🔴 HIGH | 🟡 MODERATE | 🟢 LOW]
-[2–3 sentences explaining the urgency level and what drives it — including any time-sensitive risks.]
+**2. [Condition Name]** — [Probability]
+[Same structured format]
 
-🧪 SUGGESTED INVESTIGATIONS
-[List specific tests a doctor is likely to order for this presentation, with a brief note on what each test is looking for. e.g.:]
-• Full Blood Count (FBC) — to check for infection, anaemia, or inflammatory response
-• [Test 2] — [reason]
-• [Test 3] — [reason]
-• [Add more as clinically appropriate]
+**3. [Condition Name]** — [Probability]
+[Same structured format]
 
-✅ RECOMMENDED NEXT STEPS
-• [Step 1 — specific and actionable, not generic]
-• [Step 2]
-• [Step 3]
-• [Step 4 — include booking Zorim Care telehealth where appropriate]
-• [Step 5 if needed]
+[Continue to 4th and 5th if genuinely relevant — do not pad with unlikely diagnoses]
 
-💊 SELF-CARE GUIDANCE (where safe and appropriate)
-[Practical things the patient can safely do at home while awaiting medical review — e.g. hydration, rest, OTC medications appropriate for Nigeria, monitoring symptoms. Only include if clinically safe to do so. Omit this section for HIGH or EMERGENCY urgency.]
+---
 
-🚨 RED FLAG WARNINGS
-Seek emergency care at the nearest hospital or call 112 immediately if you develop:
-• [Red flag 1 — be specific, e.g. "sudden severe headache described as the worst of your life"]
-• [Red flag 2]
-• [Red flag 3]
-• [Red flag 4]
-• [Red flag 5 if relevant]
+🔍 WHAT YOUR SYMPTOMS MEAN
 
-📄 CLINICAL PROVIDER SUMMARY
-[A formal, concise clinical handover note for a physician. Include: patient demographics, presenting complaint, symptom duration and severity, relevant PMH and medications, working differential diagnoses in order of likelihood, recommended investigations, and any immediate management considerations. Write in clinical language.]
+[For the 2–4 most prominent symptoms the patient reported, explain in plain language what they indicate clinically. Use analogies. Help the patient understand their own body. This is a teaching moment.]
 
-⚠️ IMPORTANT DISCLAIMER
-This assessment is for informational purposes only and does not constitute a medical diagnosis or replace professional medical advice. All findings must be reviewed and confirmed by a qualified, MDCN-registered physician. Zorim Care is not liable for clinical decisions based solely on this AI tool. Emergency? Call 112 immediately.
+---
 
-CRITICAL RULES:
-- If ANY message from the patient contains emergency keywords (chest pain, stroke, can't breathe, unconscious, seizure, heavy bleeding, vomiting blood, overdose, anaphylaxis, heart attack) — immediately flag it as a 🚨 EMERGENCY and instruct them to call 112 RIGHT NOW before giving any other information.
-- Be thorough and specific — give real, substantive clinical reasoning for each differential, not just condition names.
-- Cover rare, tropical, and Nigerian-endemic conditions where relevant in your differential.
-- Explain medical terms in plain language wherever possible.
-- The Suggested Investigations section must always be present and specific to the presentation.
-- Always mention Zorim Care telehealth as a next step where appropriate.
-- Never refuse to engage with a symptom due to complexity — always provide the most helpful assessment possible within safe limits.`;
+🚦 URGENCY ASSESSMENT: [EMERGENCY | HIGH | MODERATE | LOW]
+[3–4 sentences. State the specific drivers of the urgency level. If EMERGENCY or HIGH, be explicit about time-sensitive risks and the consequences of delay. If LOW or MODERATE, explain what to watch for that would escalate urgency.]
 
-async function callZorimAI(patientData) {
+---
+
+🧪 INVESTIGATIONS RECOMMENDED
+
+[List tests in order of priority. For each test, write one full sentence explaining: (1) what the test measures, (2) what result would confirm or exclude which diagnosis, (3) any Nigeria-specific note if relevant — e.g. lab availability, RDT vs PCR]
+
+• [Test 1] — [Full explanation]
+• [Test 2] — [Full explanation]
+• [Continue as clinically appropriate — minimum 4 tests, maximum 10]
+
+---
+
+✅ ACTION PLAN
+
+[5–7 specific, actionable steps. Not generic. Tailored to this patient's situation. Include when to act (now vs within hours vs within days). Step 1 should always be the most important action. Include booking Zorim Care telehealth where appropriate.]
+
+• 
+•
+•
+•
+•
+
+---
+
+💊 HOME MANAGEMENT GUIDANCE
+[OMIT ENTIRELY if urgency is EMERGENCY or HIGH — do not include any self-care section for these urgency levels]
+[For MODERATE and LOW only: practical, specific guidance for what the patient can safely do at home. Name actual medications available in Nigerian pharmacies where applicable (e.g. "Oral rehydration salts available at any patent medicine dealer", "Paracetamol 500mg–1g every 4–6 hours", "Chloroquine is no longer first-line for malaria"). Do not recommend prescription-only medicines. Include dietary and lifestyle guidance specific to Nigeria.]
+
+---
+
+🚨 EMERGENCY WARNING SIGNS
+Attend the nearest emergency department or call 112 IMMEDIATELY if you develop:
+• [Warning sign 1 — be highly specific, not generic. E.g. "Sudden severe headache described as 'the worst of your life' — even if it passes quickly"]
+• [Warning sign 2]
+• [Warning sign 3]
+• [Warning sign 4]
+• [Warning sign 5 if relevant]
+
+---
+
+📄 CLINICAL HANDOVER NOTE
+[This section is for the treating physician. Write in formal clinical language. Include: Age/sex/presenting complaint/symptom duration and character/associated features/relevant PMH and medications/examination findings noted by patient (vital signs if given)/working differential in priority order/immediate management considerations/investigations already done if any/recommended next investigations/disposition recommendation. Use standard abbreviations: c/o, h/o, O/E, Ix, Rx, etc.]
+
+---
+
+⚠️ DISCLAIMER
+This AI-generated assessment is for educational and informational purposes only. It does not constitute a medical diagnosis, does not replace clinical examination, and should not be used as the sole basis for any treatment decision. All findings must be reviewed and confirmed by a qualified, MDCN-registered physician. Zorim Care accepts no liability for clinical decisions based solely on this tool. If this is a medical emergency, call 112 immediately.
+
+═══════════════════════════════════════════════════
+CRITICAL RULES — NON-NEGOTIABLE
+═══════════════════════════════════════════════════
+
+EMERGENCY FAST-PATH: If ANY user message contains explicit emergency keywords (chest pain, stroke, unconscious, can't breathe, vomiting blood, seizure, heavy bleeding, heart attack, overdose, anaphylaxis, not waking up, collapsed) — IMMEDIATELY produce ONLY the emergency response. Do not collect more history. Flag 🚨 EMERGENCY and give the 112 instruction FIRST, then a brief action plan.
+
+CLINICAL QUALITY: Never produce a superficial differential. Every condition named must have substantive clinical reasoning. The assessment must be at consultant-level quality — not intern-level name-dropping.
+
+NIGERIA CONTEXT: Always apply Nigerian epidemiological lens. Malaria must always be in the differential for fever. Sickle cell must be considered in relevant presentations. Typhoid is endemic. HIV prevalence is ~1.5 million people — always relevant. Hypertension prevalence >35% in adults. Diabetes >5%. Chronic kidney disease is underdiagnosed. Consider healthcare access barriers.
+
+COMPLETENESS: Never refuse a symptom due to complexity or sensitivity. Always engage fully. If the symptom pattern is unclear, say so explicitly and explain what additional information would help clarify.
+
+SAFEGUARDING: If any response suggests risk of self-harm, domestic violence, child abuse, or neglect — include appropriate support resources in the Nigerian context (e.g. NEMA helpline, domestic violence hotlines, mental health resources).
+
+MEDICATIONS: Where mentioning medications, always include the generic name and be mindful of availability in Nigeria. Note if a drug is on the essential medicines list. Never prescribe — guide.`;
+
+// ─── Advanced Intake System ────────────────────────────────────────────────────
+
+const INTAKE_QUESTIONS = [
+  {
+    key: "symptom",
+    ask: "What is your main health concern or symptom today?\n\nDescribe it in as much detail as you can — location, character (sharp, dull, burning?), what makes it better or worse.",
+    placeholder: "e.g. I have a severe headache at the back of my head for 3 days, with fever and neck stiffness...",
+    type: "text",
+  },
+  {
+    key: "duration",
+    ask: "How long have you been experiencing this?\n\nDid it start suddenly or gradually? Has it been getting better, worse, or staying the same?",
+    placeholder: "e.g. Started 3 days ago suddenly, getting progressively worse...",
+    type: "text",
+  },
+  {
+    key: "severity",
+    ask: "On a scale of 1–10, how severe is it right now?\n(1 = barely noticeable · 5 = moderately affecting daily life · 10 = the worst you have ever felt)",
+    placeholder: "e.g. 7/10 — I can't concentrate at work...",
+    type: "severity",
+  },
+  {
+    key: "age",
+    ask: "How old are you, and what is your biological sex?\n\nAlso, where in Nigeria are you based? (This helps us factor in regional disease patterns.)",
+    placeholder: "e.g. 34 year old male, Lagos...",
+    type: "text",
+  },
+  {
+    key: "history",
+    ask: "Do you have any existing medical conditions?\n\nFor example: diabetes, hypertension, sickle cell disease, HIV, asthma, kidney disease, epilepsy...\n\nAre you currently taking any medications or herbal remedies?",
+    placeholder: "e.g. Type 2 diabetes, on Metformin 500mg twice daily. No allergies...",
+    type: "text",
+  },
+  {
+    key: "other",
+    ask: "Any other symptoms alongside the main one?\n\nFor example: fever, chills, sweating, nausea, vomiting, diarrhoea, chest pain, difficulty breathing, rashes, weight loss, swelling, changes in urine or stool colour...",
+    placeholder: "e.g. I also have high fever (38.9°C), nausea, and yellowish eyes...",
+    type: "text",
+  },
+];
+
+// ─── Streaming AI Call ─────────────────────────────────────────────────────────
+
+async function callZorimAI(patientData, onChunk, onDone, onError) {
   const patientSummary = `
-Patient Report:
-- Main symptom/concern: ${patientData.symptom || "Not specified"}
-- Duration: ${patientData.duration || "Not specified"}
-- Severity (1-10): ${patientData.severity || "Not rated"}
-- Age & Gender: ${patientData.age || "Not provided"}
-- Medical history & current medications: ${patientData.history || "None stated"}
-- Additional symptoms: ${patientData.other || "None mentioned"}
+PATIENT SYMPTOM REPORT — FOR CLINICAL ASSESSMENT
 
-Please provide a comprehensive clinical assessment following the structured format.`.trim();
+Chief Complaint: ${patientData.symptom || "Not specified"}
+Duration & Onset: ${patientData.duration || "Not specified"}
+Severity (1–10): ${patientData.severity || "Not rated"}
+Patient Demographics & Location: ${patientData.age || "Not provided"}
+Past Medical History & Medications: ${patientData.history || "None stated"}
+Associated Symptoms: ${patientData.other || "None mentioned"}
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
-      system: ZORIM_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: patientSummary }],
-    }),
-  });
+Please generate a comprehensive clinical assessment following your structured format. Apply Nigerian epidemiological context throughout. This patient is about to be connected with an MDCN-registered Zorim Care physician, so your assessment should prepare both the patient and the physician.`.trim();
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  const data = await response.json();
-  return data.content?.[0]?.text || "Unable to generate assessment. Please try again or book a telehealth consultation.";
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        stream: true,
+        system: ZORIM_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: patientSummary }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error ${response.status}: ${errText}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") { onDone(); return; }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
+            onChunk(parsed.delta.text);
+          }
+        } catch { /* skip malformed lines */ }
+      }
+    }
+    onDone();
+  } catch (err) {
+    onError(err);
+  }
 }
+
+// ─── Rich Report Renderer ──────────────────────────────────────────────────────
+
+function ReportRenderer({ text, dark }) {
+  const lines = text.split("\n");
+  const result = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Section headers
+    if (line.startsWith("📋") || line.startsWith("🔬") || line.startsWith("🔍") ||
+        line.startsWith("🚦") || line.startsWith("🧪") || line.startsWith("✅") ||
+        line.startsWith("💊") || line.startsWith("🚨") || line.startsWith("📄") ||
+        line.startsWith("⚠️")) {
+      const isUrgency = line.startsWith("🚦");
+      const isEmergency = line.includes("EMERGENCY") && isUrgency;
+      const isHigh = line.includes("HIGH") && isUrgency;
+      const isMod = line.includes("MODERATE") && isUrgency;
+      const isLow = line.includes("LOW") && isUrgency;
+
+      let urgBg = "", urgBorder = "", urgText = "";
+      if (isUrgency) {
+        if (isEmergency) { urgBg = "#fef2f2"; urgBorder = "#ef4444"; urgText = "#b91c1c"; }
+        else if (isHigh) { urgBg = "#fff7ed"; urgBorder = "#f97316"; urgText = "#c2410c"; }
+        else if (isMod)  { urgBg = "#fefce8"; urgBorder = "#eab308"; urgText = "#854d0e"; }
+        else if (isLow)  { urgBg = "#f0fdf4"; urgBorder = "#22c55e"; urgText = "#15803d"; }
+      }
+
+      const headerStyle = isUrgency ? {
+        background: dark ? "rgba(255,255,255,0.08)" : urgBg,
+        border: `2px solid ${urgBorder}`,
+        borderRadius: "12px",
+        padding: "12px 16px",
+        margin: "16px 0 8px 0",
+        color: dark ? "#f1f5f9" : urgText,
+        fontWeight: "700",
+        fontSize: "15px",
+      } : {
+        margin: "18px 0 6px 0",
+        fontWeight: "700",
+        fontSize: "14px",
+        color: dark ? "#94a3b8" : "#475569",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        borderBottom: dark ? "1px solid #334155" : "1px solid #e2e8f0",
+        paddingBottom: "6px",
+      };
+
+      result.push(<div key={i} style={headerStyle}>{line}</div>);
+      i++; continue;
+    }
+
+    // Condition headers (bold **text**)
+    if (line.startsWith("**") && line.includes("**")) {
+      const cleaned = line.replace(/\*\*/g, "");
+      result.push(
+        <div key={i} style={{ fontWeight: "700", fontSize: "13px", margin: "14px 0 2px 0", color: dark ? "#e2e8f0" : "#1e293b" }}>
+          {cleaned}
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Italicised subheadings (*text*)
+    if (line.startsWith("*Why") || line.startsWith("*Distinguishing")) {
+      const cleaned = line.replace(/\*/g, "");
+      result.push(
+        <div key={i} style={{ fontStyle: "italic", fontSize: "12px", color: dark ? "#94a3b8" : "#64748b", margin: "4px 0 2px 0" }}>
+          {cleaned}
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Bullet points
+    if (line.startsWith("• ") || line.startsWith("- ")) {
+      result.push(
+        <div key={i} style={{ display: "flex", gap: "8px", margin: "4px 0", fontSize: "13px", lineHeight: "1.6" }}>
+          <span style={{ color: "#10b981", flexShrink: 0, marginTop: "1px" }}>▸</span>
+          <span style={{ color: dark ? "#cbd5e1" : "#374151" }}>{line.slice(2)}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Separator lines
+    if (line.startsWith("---")) {
+      result.push(<div key={i} style={{ borderBottom: dark ? "1px solid #1e293b" : "1px solid #f1f5f9", margin: "12px 0" }} />);
+      i++; continue;
+    }
+
+    // Empty lines
+    if (!line.trim()) {
+      result.push(<div key={i} style={{ height: "6px" }} />);
+      i++; continue;
+    }
+
+    // Normal text
+    result.push(
+      <p key={i} style={{ fontSize: "13px", lineHeight: "1.7", color: dark ? "#cbd5e1" : "#374151", margin: "3px 0" }}>
+        {line}
+      </p>
+    );
+    i++;
+  }
+
+  return <div>{result}</div>;
+}
+
+// ─── Severity Slider Input ─────────────────────────────────────────────────────
+
+function SeverityInput({ value, onChange, dark }) {
+  const level = parseInt(value) || 5;
+  const getColor = (n) => {
+    if (n <= 3) return "#22c55e";
+    if (n <= 5) return "#eab308";
+    if (n <= 7) return "#f97316";
+    return "#ef4444";
+  };
+  const getLabel = (n) => {
+    if (n <= 2) return "Mild — barely noticeable";
+    if (n <= 4) return "Moderate — noticeable but manageable";
+    if (n <= 6) return "Significant — affecting daily life";
+    if (n <= 8) return "Severe — very uncomfortable";
+    return "Extreme — worst I have experienced";
+  };
+
+  return (
+    <div style={{ padding: "8px 0" }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "8px",
+      }}>
+        <span style={{ fontSize: "13px", color: dark ? "#94a3b8" : "#64748b" }}>Severity level</span>
+        <span style={{ fontSize: "22px", fontWeight: "800", color: getColor(level) }}>{level}<span style={{ fontSize: "13px", color: dark ? "#64748b" : "#94a3b8" }}>/10</span></span>
+      </div>
+      <input
+        type="range" min="1" max="10" value={level}
+        onChange={e => onChange(e.target.value)}
+        style={{ width: "100%", accentColor: getColor(level), margin: "4px 0" }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: dark ? "#475569" : "#94a3b8", marginTop: "2px" }}>
+        <span>1 — Mild</span><span>5 — Moderate</span><span>10 — Extreme</span>
+      </div>
+      <div style={{
+        marginTop: "10px", padding: "8px 12px", borderRadius: "8px",
+        background: dark ? "rgba(255,255,255,0.06)" : "#f8fafc",
+        fontSize: "12px", color: dark ? "#94a3b8" : "#64748b",
+        borderLeft: `3px solid ${getColor(level)}`,
+      }}>
+        {getLabel(level)}
+      </div>
+    </div>
+  );
+}
+
+// ─── Typing Indicator ──────────────────────────────────────────────────────────
+
+function TypingDots({ dark }) {
+  return (
+    <div style={{ display: "flex", gap: "5px", padding: "12px 16px", alignItems: "center" }}>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{
+          width: "7px", height: "7px", borderRadius: "50%",
+          background: dark ? "#475569" : "#94a3b8",
+          animation: "bounce 1.2s infinite ease-in-out",
+          animationDelay: `${i * 0.2}s`,
+        }} />
+      ))}
+      <span style={{ fontSize: "11px", color: dark ? "#475569" : "#94a3b8", marginLeft: "6px" }}>
+        Analysing with clinical AI...
+      </span>
+    </div>
+  );
+}
+
+// ─── Progress Stepper ──────────────────────────────────────────────────────────
+
+function ProgressStepper({ step, total, dark }) {
+  const pct = ((step) / total) * 100;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+        <span style={{ fontSize: "11px", color: dark ? "#64748b" : "#94a3b8", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Question {step + 1} of {total}
+        </span>
+        <span style={{ fontSize: "11px", color: "#8b5cf6", fontWeight: "700" }}>
+          {Math.round(pct)}% complete
+        </span>
+      </div>
+      <div style={{ height: "4px", borderRadius: "999px", background: dark ? "#1e293b" : "#f1f5f9", overflow: "hidden" }}>
+        <div style={{
+          height: "100%", width: `${pct}%`,
+          background: "linear-gradient(90deg, #8b5cf6, #7c3aed)",
+          borderRadius: "999px",
+          transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+        }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+        {Array.from({ length: total }).map((_, idx) => (
+          <div key={idx} style={{
+            width: "28px", height: "28px", borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "11px", fontWeight: "700",
+            transition: "all 0.3s",
+            background: idx < step ? "linear-gradient(135deg, #8b5cf6, #7c3aed)"
+              : idx === step ? "linear-gradient(135deg, #a78bfa, #8b5cf6)"
+              : dark ? "#1e293b" : "#f1f5f9",
+            color: idx <= step ? "#fff" : dark ? "#475569" : "#94a3b8",
+            boxShadow: idx === step ? "0 0 0 3px rgba(139,92,246,0.25)" : "none",
+          }}>
+            {idx < step ? "✓" : idx + 1}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Quick Symptom Tags ────────────────────────────────────────────────────────
+
+const COMMON_SYMPTOMS = [
+  "Fever", "Headache", "Chest pain", "Cough", "Difficulty breathing",
+  "Stomach pain", "Diarrhoea", "Nausea/vomiting", "Body pain", "Fatigue",
+  "Rash", "Yellow eyes (jaundice)", "Swollen legs", "Back pain", "Dizziness",
+  "Frequent urination", "Blurred vision", "Weight loss", "Joint pain", "Palpitations",
+];
+
+function SymptomTags({ onSelect, dark }) {
+  return (
+    <div style={{ marginBottom: "12px" }}>
+      <div style={{ fontSize: "11px", color: dark ? "#64748b" : "#94a3b8", marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        Quick select or type your own:
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        {COMMON_SYMPTOMS.map(sym => (
+          <button key={sym} onClick={() => onSelect(sym)}
+            style={{
+              padding: "5px 11px", borderRadius: "999px",
+              border: dark ? "1px solid #334155" : "1px solid #e2e8f0",
+              background: dark ? "rgba(139,92,246,0.1)" : "#f8f5ff",
+              color: dark ? "#a78bfa" : "#7c3aed",
+              fontSize: "12px", cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => e.target.style.background = dark ? "rgba(139,92,246,0.25)" : "#ede9fe"}
+            onMouseLeave={e => e.target.style.background = dark ? "rgba(139,92,246,0.1)" : "#f8f5ff"}
+          >
+            {sym}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Modal Component ──────────────────────────────────────────────────────
 
 function AIMedicalModal({ onClose, dark }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({});
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hello! I'm Zorim AI, your health intake assistant 🩺\n\nI'm powered by advanced medical AI with knowledge of virtually every known disease and symptom in modern medicine — from common conditions like malaria, hypertension, and diabetes, to rare and tropical diseases.\n\nI'll ask you a few short questions to assess your symptoms. This is not a medical diagnosis — always confirm with a qualified doctor.\n\n" + INTAKE_QUESTIONS[0].ask }
-  ]);
-  const [done, setDone] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState("intake"); // "intake" | "streaming" | "done" | "emergency"
+  const [report, setReport] = useState("");
+  const [streamBuffer, setStreamBuffer] = useState("");
+  const [error, setError] = useState(null);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  const theme = {
-    card: dark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200",
-    text: dark ? "text-slate-100" : "text-slate-800",
-    muted: dark ? "text-slate-400" : "text-slate-500",
-    input: dark ? "bg-slate-800 border-slate-600 text-white placeholder-slate-500" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400",
-    bubble: dark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800",
-  };
+  const q = INTAKE_QUESTIONS[step];
+  const isSeverityQ = q?.type === "severity";
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // Auto-scroll to bottom on new content
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [streamBuffer, report, phase, step]);
 
-  const send = async () => {
-    if (!input.trim() || done || loading) return;
-    const userMsg = { role: "user", content: input.trim() };
-    const key = INTAKE_QUESTIONS[step]?.key;
-    const newData = { ...data, [key]: input.trim() };
-    setData(newData);
-    setInput("");
+  // Focus input on step change
+  useEffect(() => {
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      inputRef.current?.focus();
+    }, 100);
+  }, [step]);
 
-    // Emergency keyword fast-path — immediate 112 instruction
-    const lower = input.toLowerCase();
-    const emergencyWords = ["chest pain","can't breathe","cannot breathe","not breathing","stroke","unconscious","unresponsive","heavy bleeding","vomiting blood","heart attack","choking","seizure","convulsion","collapsed","anaphylaxis","overdose","not waking up"];
-    if (emergencyWords.some(w => lower.includes(w))) {
-      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "🚨 EMERGENCY DETECTED\n\nBased on what you've described, this may be a life-threatening emergency.\n\n📞 CALL 112 IMMEDIATELY or go to the nearest hospital A&E.\n\nDo NOT wait. Do NOT drive yourself if possible. Alert someone nearby now.\n\nZorim Care Emergency Line (existing patients): 0704 339 7245\n\n⚠️ Do not delay emergency care for any reason." }]);
-      setDone(true);
+  // Check for emergency keywords in real time
+  const checkEmergency = useCallback((text) => {
+    const lower = text.toLowerCase();
+    return EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
+  }, []);
+
+  const handleSend = async () => {
+    if (phase === "streaming") return;
+    const val = isSeverityQ ? (input || "5") : input.trim();
+    if (!val) return;
+
+    // Emergency fast-path
+    if (checkEmergency(val)) {
+      setPhase("emergency");
       return;
     }
 
-    const nextStep = step + 1;
-    if (nextStep < INTAKE_QUESTIONS.length) {
-      setMessages(prev => [...prev, userMsg, { role: "assistant", content: INTAKE_QUESTIONS[nextStep].ask }]);
-      setStep(nextStep);
+    const newData = { ...data, [q.key]: val };
+    setData(newData);
+    setInput("");
+
+    if (step + 1 < INTAKE_QUESTIONS.length) {
+      setStep(s => s + 1);
     } else {
-      // All questions answered — call Anthropic API for comprehensive AI assessment
-      setMessages(prev => [...prev, userMsg, { role: "assistant", content: "⏳ Analysing your symptoms with our AI engine... This usually takes 5–10 seconds." }]);
-      setLoading(true);
-      try {
-        const report = await callZorimAI(newData);
-        setMessages(prev => {
-          // Replace the "analysing" message with the real report
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: report };
-          return updated;
-        });
-      } catch (err) {
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: "⚠️ Our AI engine encountered an issue generating your assessment. Please try again, or book a telehealth consultation directly with a Zorim Care doctor.\n\nEmergency? Call 112 or 0704 339 7245." };
-          return updated;
-        });
-      } finally {
-        setLoading(false);
-        setDone(true);
-      }
+      // All intake done — call AI
+      setPhase("streaming");
+      setStreamBuffer("");
+      setReport("");
+
+      await callZorimAI(
+        newData,
+        (chunk) => setStreamBuffer(prev => prev + chunk),
+        () => {
+          setReport(prev => prev || streamBuffer);
+          setStreamBuffer("");
+          setPhase("done");
+        },
+        (err) => {
+          setError(err.message || "Unknown error");
+          setPhase("done");
+        }
+      );
     }
   };
 
-  const restart = () => {
-    setStep(0); setData({}); setInput(""); setDone(false); setLoading(false);
-    setMessages([{ role: "assistant", content: "Let's start again. I'm Zorim AI — powered by advanced medical AI with knowledge of virtually all known diseases and symptoms. \n\n" + INTAKE_QUESTIONS[0].ask }]);
+  const handleRestart = () => {
+    setStep(0); setData({}); setInput("");
+    setPhase("intake"); setReport(""); setStreamBuffer(""); setError(null);
   };
 
-  const formatMsg = (text) => text.split("\n").map((line, i, arr) => (
-    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-  ));
+  // Colours
+  const colors = {
+    bg: dark ? "#0f172a" : "#ffffff",
+    border: dark ? "#1e293b" : "#e2e8f0",
+    text: dark ? "#f1f5f9" : "#0f172a",
+    muted: dark ? "#64748b" : "#94a3b8",
+    inputBg: dark ? "#1e293b" : "#f8fafc",
+    inputBorder: dark ? "#334155" : "#e2e8f0",
+    aiBubble: dark ? "#1e293b" : "#f8fafc",
+    userBubble: "#7c3aed",
+    headerBg: dark ? "#0f172a" : "#ffffff",
+    streamerBg: dark ? "#111827" : "#fafafa",
+    tagBg: dark ? "#1e293b" : "#f1f5f9",
+  };
+
+  const currentReport = streamBuffer || report;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}>
-      <div className={`${theme.card} border rounded-3xl w-full max-w-lg shadow-2xl flex flex-col`} style={{ height: "85vh" }}>
-        {/* Header */}
-        <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: dark ? "#334155" : "#e2e8f0" }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-xl">🤖</div>
-            <div>
-              <div className={`font-bold ${theme.text}`}>Zorim AI Health Assistant</div>
-              <div className={`text-xs ${theme.muted}`}>
-                {done ? "Assessment complete" : `Step ${step + 1} of ${INTAKE_QUESTIONS.length}`}
+    <>
+      {/* Keyframes for animations */}
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-8px); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.3); }
+          50% { box-shadow: 0 0 0 8px rgba(139,92,246,0); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .zorim-textarea:focus {
+          outline: none;
+          border-color: #8b5cf6 !important;
+          box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+        }
+        .zorim-send-btn:hover:not(:disabled) {
+          transform: scale(1.05);
+          box-shadow: 0 4px 20px rgba(139,92,246,0.4);
+        }
+        .zorim-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      `}</style>
+
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,0.75)",
+          backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px",
+        }}
+      >
+        {/* Modal */}
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: colors.bg,
+            borderRadius: "24px",
+            width: "100%",
+            maxWidth: "640px",
+            height: "90vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 25px 80px rgba(0,0,0,0.5)",
+            overflow: "hidden",
+            animation: "fadeIn 0.3s ease",
+            border: `1px solid ${colors.border}`,
+          }}
+        >
+          {/* ── Header ── */}
+          <div style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${colors.border}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: colors.headerBg,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{
+                width: "44px", height: "44px", borderRadius: "14px",
+                background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "20px",
+                boxShadow: "0 4px 14px rgba(139,92,246,0.4)",
+                animation: "pulse-glow 3s infinite",
+              }}>🤖</div>
+              <div>
+                <div style={{ fontWeight: "700", color: colors.text, fontSize: "15px", letterSpacing: "-0.01em" }}>
+                  Zorim AI · Clinical Assessment
+                </div>
+                <div style={{ fontSize: "11px", color: "#8b5cf6", fontWeight: "600", marginTop: "1px" }}>
+                  {phase === "intake" && `Step ${step + 1} of ${INTAKE_QUESTIONS.length} · Powered by Claude`}
+                  {phase === "streaming" && "⚡ Generating clinical assessment..."}
+                  {phase === "done" && "✓ Assessment complete"}
+                  {phase === "emergency" && "🚨 EMERGENCY DETECTED"}
+                </div>
               </div>
             </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: "32px", height: "32px", borderRadius: "50%",
+                border: "none", cursor: "pointer",
+                background: dark ? "#1e293b" : "#f1f5f9",
+                color: colors.muted, fontSize: "14px",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={e => e.target.style.background = dark ? "#334155" : "#e2e8f0"}
+              onMouseLeave={e => e.target.style.background = dark ? "#1e293b" : "#f1f5f9"}
+            >✕</button>
           </div>
-          <button onClick={onClose} className={`w-9 h-9 rounded-full flex items-center justify-center ${dark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"} hover:scale-110 transition-transform text-lg`}>✕</button>
-        </div>
 
-        {/* Progress bar */}
-        {!done && (
-          <div className="h-1 bg-slate-200">
-            <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-600 transition-all duration-500"
-              style={{ width: `${((step) / INTAKE_QUESTIONS.length) * 100}%` }} />
+          {/* ── Disclaimer bar ── */}
+          <div style={{
+            padding: "8px 20px",
+            background: dark ? "rgba(234,179,8,0.08)" : "#fefce8",
+            borderBottom: `1px solid ${dark ? "rgba(234,179,8,0.15)" : "#fde047"}`,
+            display: "flex", alignItems: "center", gap: "8px",
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: "14px" }}>⚠️</span>
+            <p style={{ fontSize: "11px", color: dark ? "#fde047" : "#854d0e", margin: 0, lineHeight: 1.4 }}>
+              <strong>Not a diagnosis.</strong> For emergencies call <strong>112</strong>. Always confirm with an MDCN-registered doctor.
+            </p>
           </div>
-        )}
 
-        {/* Disclaimer */}
-        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
-          <span className="text-amber-500 text-sm mt-0.5">⚠️</span>
-          <p className="text-amber-700 text-xs leading-relaxed">Informational only — not a medical diagnosis. Emergency? Call <strong>112</strong>.</p>
-        </div>
+          {/* ── Content area ── */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              {m.role === "assistant" && (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-sm mr-2 mt-1 flex-shrink-0">🤖</div>
-              )}
-              <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${m.role === "user" ? "bg-green-700 text-white rounded-br-sm" : theme.bubble + " rounded-bl-sm"}`}>
-                {formatMsg(m.content)}
-              </div>
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Input / done state */}
-        <div className="p-4 border-t" style={{ borderColor: dark ? "#334155" : "#e2e8f0" }}>
-          {done ? (
-            <div className="space-y-2">
-              <button onClick={restart}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm hover:scale-[1.02] transition-all">
-                Start New Assessment 🔄
-              </button>
-              <button onClick={onClose}
-                className={`w-full py-3 rounded-xl border font-semibold text-sm ${dark ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"} hover:scale-[1.02] transition-all`}>
-                Close
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-2">
-                <input value={input} onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && send()}
-                  placeholder={loading ? "Analysing your symptoms..." : "Type your answer..."}
-                  disabled={loading}
-                  className={`flex-1 px-4 py-3 rounded-xl border text-sm ${theme.input} focus:border-purple-500 transition-colors disabled:opacity-60`} />
-                <button onClick={send} disabled={!input.trim() || loading}
-                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100">
-                  {loading ? "⏳" : "Send"}
+            {/* EMERGENCY state */}
+            {phase === "emergency" && (
+              <div style={{
+                background: "#fef2f2",
+                border: "2px solid #ef4444",
+                borderRadius: "16px",
+                padding: "24px",
+                animation: "fadeIn 0.3s ease",
+              }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px", textAlign: "center" }}>🚨</div>
+                <h3 style={{ color: "#991b1b", fontWeight: "800", fontSize: "20px", textAlign: "center", margin: "0 0 16px 0" }}>
+                  POSSIBLE EMERGENCY DETECTED
+                </h3>
+                <p style={{ color: "#b91c1c", fontSize: "15px", textAlign: "center", marginBottom: "20px", lineHeight: 1.6 }}>
+                  Based on your symptoms, this may be a life-threatening medical emergency.
+                </p>
+                <div style={{
+                  background: "#ef4444", color: "#fff", borderRadius: "12px",
+                  padding: "16px", textAlign: "center", marginBottom: "16px",
+                }}>
+                  <div style={{ fontSize: "28px", fontWeight: "900", marginBottom: "4px" }}>📞 CALL 112 NOW</div>
+                  <div style={{ fontSize: "13px", opacity: 0.9 }}>Nigeria Emergency Services — Available 24/7</div>
+                </div>
+                <div style={{ background: "#fee2e2", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+                  <div style={{ fontWeight: "700", color: "#991b1b", marginBottom: "8px", fontSize: "13px" }}>WHILE WAITING FOR HELP:</div>
+                  {["Do not drive yourself to hospital — call for an ambulance or ask someone to drive you",
+                    "Stay calm and stay still if possible",
+                    "Do not eat or drink anything",
+                    "Unlock your front door so emergency services can enter",
+                    "Keep your phone nearby and the line clear for emergency calls"].map((item, i) => (
+                    <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
+                      <span style={{ color: "#ef4444", fontWeight: "700" }}>{i + 1}.</span>
+                      <span style={{ color: "#991b1b", fontSize: "13px" }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background: "#fca5a5", borderRadius: "10px", padding: "12px", marginBottom: "20px" }}>
+                  <div style={{ fontWeight: "700", color: "#991b1b", fontSize: "12px", marginBottom: "4px" }}>ZORIM CARE EMERGENCY LINE</div>
+                  <div style={{ color: "#7f1d1d", fontSize: "13px" }}>📞 0704 339 7245 · Existing patients only</div>
+                </div>
+                <button
+                  onClick={handleRestart}
+                  style={{
+                    width: "100%", padding: "14px", borderRadius: "12px",
+                    background: "#ef4444", color: "#fff", border: "none",
+                    fontWeight: "700", fontSize: "14px", cursor: "pointer",
+                  }}
+                >
+                  This is not an emergency — Restart Assessment
                 </button>
               </div>
-              <p className={`${theme.muted} text-xs text-center mt-2`}>Press Enter to send · Powered by Claude Haiku · Data stays private</p>
-            </>
-          )}
+            )}
+
+            {/* INTAKE state */}
+            {phase === "intake" && (
+              <div style={{ animation: "fadeIn 0.3s ease" }}>
+                {/* Progress */}
+                <div style={{ marginBottom: "20px" }}>
+                  <ProgressStepper step={step} total={INTAKE_QUESTIONS.length} dark={dark} />
+                </div>
+
+                {/* Question card */}
+                <div style={{
+                  background: dark ? "#1e293b" : "#f8f5ff",
+                  borderRadius: "16px",
+                  padding: "20px",
+                  marginBottom: "16px",
+                  borderLeft: "4px solid #8b5cf6",
+                }}>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                    <div style={{
+                      width: "36px", height: "36px", borderRadius: "10px",
+                      background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "16px", flexShrink: 0,
+                    }}>🤖</div>
+                    <div style={{ fontSize: "14px", color: colors.text, lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                      {q?.ask}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick symptom tags on first question */}
+                {step === 0 && (
+                  <SymptomTags
+                    dark={dark}
+                    onSelect={sym => setInput(prev => prev ? `${prev}, ${sym}` : sym)}
+                  />
+                )}
+
+                {/* Severity slider or textarea */}
+                {isSeverityQ ? (
+                  <SeverityInput value={input || "5"} onChange={setInput} dark={dark} />
+                ) : (
+                  <textarea
+                    ref={textareaRef}
+                    className="zorim-textarea"
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder={q?.placeholder}
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      borderRadius: "12px",
+                      border: `1.5px solid ${colors.inputBorder}`,
+                      background: colors.inputBg,
+                      color: colors.text,
+                      fontSize: "13px",
+                      lineHeight: 1.6,
+                      resize: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s, box-shadow 0.2s",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                )}
+
+                {/* Previously answered questions preview */}
+                {Object.keys(data).length > 0 && (
+                  <div style={{ marginTop: "16px" }}>
+                    <div style={{ fontSize: "11px", color: colors.muted, marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Your answers so far:
+                    </div>
+                    {Object.entries(data).map(([key, val]) => {
+                      const qInfo = INTAKE_QUESTIONS.find(q => q.key === key);
+                      return (
+                        <div key={key} style={{
+                          display: "flex", gap: "8px", marginBottom: "4px",
+                          padding: "8px 12px", borderRadius: "8px",
+                          background: dark ? "rgba(255,255,255,0.03)" : "#f8fafc",
+                          fontSize: "12px",
+                        }}>
+                          <span style={{ color: "#8b5cf6", fontWeight: "600", flexShrink: 0 }}>
+                            {qInfo?.key.charAt(0).toUpperCase() + qInfo?.key.slice(1)}:
+                          </span>
+                          <span style={{ color: colors.muted }}>{String(val).slice(0, 80)}{String(val).length > 80 ? "..." : ""}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STREAMING / DONE state */}
+            {(phase === "streaming" || phase === "done") && (
+              <div style={{ animation: "fadeIn 0.3s ease" }}>
+                {/* Patient summary card */}
+                <div style={{
+                  background: dark ? "#1e293b" : "#f8f5ff",
+                  borderRadius: "14px",
+                  padding: "16px",
+                  marginBottom: "20px",
+                  border: `1px solid ${dark ? "#334155" : "#ddd6fe"}`,
+                }}>
+                  <div style={{ fontWeight: "700", fontSize: "12px", color: "#8b5cf6", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Your submitted symptom report
+                  </div>
+                  {[
+                    { label: "Chief Complaint", val: data.symptom },
+                    { label: "Duration", val: data.duration },
+                    { label: "Severity", val: data.severity ? `${data.severity}/10` : undefined },
+                    { label: "Age/Sex/Location", val: data.age },
+                    { label: "Medical History", val: data.history },
+                    { label: "Associated Symptoms", val: data.other },
+                  ].filter(r => r.val).map(({ label, val }) => (
+                    <div key={label} style={{ display: "flex", gap: "8px", marginBottom: "6px", fontSize: "12px" }}>
+                      <span style={{ color: colors.muted, fontWeight: "600", flexShrink: 0, minWidth: "130px" }}>{label}:</span>
+                      <span style={{ color: colors.text }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* AI response header */}
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "16px" }}>
+                  <div style={{
+                    width: "38px", height: "38px", borderRadius: "12px",
+                    background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "18px", flexShrink: 0,
+                  }}>🤖</div>
+                  <div>
+                    <div style={{ fontWeight: "700", fontSize: "14px", color: colors.text }}>Zorim AI Clinical Assessment</div>
+                    <div style={{ fontSize: "11px", color: colors.muted }}>
+                      {phase === "streaming" ? "Generating detailed assessment..." : "Assessment complete · Review with a Zorim Care doctor"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Streaming indicator */}
+                {phase === "streaming" && !currentReport && (
+                  <TypingDots dark={dark} />
+                )}
+
+                {/* Streaming progress bar */}
+                {phase === "streaming" && currentReport && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <div style={{
+                      height: "3px", borderRadius: "999px",
+                      background: dark ? "#1e293b" : "#f1f5f9",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        height: "100%", width: "60%",
+                        background: "linear-gradient(90deg, #8b5cf6 0%, #7c3aed 50%, #8b5cf6 100%)",
+                        backgroundSize: "200% 100%",
+                        animation: "shimmer 1.5s infinite linear",
+                        borderRadius: "999px",
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Report */}
+                {currentReport && (
+                  <div style={{
+                    background: colors.aiBubble,
+                    borderRadius: "16px",
+                    padding: "20px",
+                    border: `1px solid ${colors.border}`,
+                    minHeight: "100px",
+                  }}>
+                    <ReportRenderer text={currentReport} dark={dark} />
+                    {phase === "streaming" && (
+                      <span style={{
+                        display: "inline-block", width: "8px", height: "16px",
+                        background: "#8b5cf6", marginLeft: "2px",
+                        animation: "bounce 1s infinite",
+                        borderRadius: "2px",
+                        verticalAlign: "middle",
+                      }} />
+                    )}
+                  </div>
+                )}
+
+                {/* Error state */}
+                {error && (
+                  <div style={{
+                    marginTop: "16px", padding: "16px", borderRadius: "12px",
+                    background: dark ? "#1e293b" : "#fef2f2",
+                    border: `1px solid ${dark ? "#334155" : "#fca5a5"}`,
+                  }}>
+                    <p style={{ color: "#ef4444", fontSize: "13px", margin: 0 }}>
+                      ⚠️ Assessment generation encountered an issue. Please try again or book a consultation directly.
+                    </p>
+                    <p style={{ color: colors.muted, fontSize: "11px", margin: "6px 0 0 0" }}>{error}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
+
+          {/* ── Footer / Input Area ── */}
+          <div style={{
+            padding: "16px 20px",
+            borderTop: `1px solid ${colors.border}`,
+            background: colors.headerBg,
+            flexShrink: 0,
+          }}>
+            {phase === "intake" && (
+              <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+                <div style={{ flex: 1 }}>
+                  {isSeverityQ ? (
+                    <div style={{ fontSize: "12px", color: colors.muted, textAlign: "center" }}>
+                      Adjust the slider above, then click Send
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  className="zorim-send-btn"
+                  onClick={handleSend}
+                  disabled={!isSeverityQ && !input.trim()}
+                  style={{
+                    padding: "12px 24px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                    color: "#fff",
+                    fontWeight: "700",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  {step + 1 < INTAKE_QUESTIONS.length ? "Next →" : "Analyse Symptoms 🔬"}
+                </button>
+              </div>
+            )}
+
+            {phase === "streaming" && (
+              <div style={{ textAlign: "center", fontSize: "12px", color: colors.muted, padding: "4px 0" }}>
+                ⏳ Generating your clinical assessment with Claude... This may take 15–30 seconds.
+              </div>
+            )}
+
+            {(phase === "done" || phase === "emergency") && (
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={handleRestart}
+                  style={{
+                    flex: 1, padding: "12px",
+                    borderRadius: "12px", border: `1.5px solid ${dark ? "#334155" : "#e2e8f0"}`,
+                    background: "transparent", color: colors.text,
+                    fontWeight: "600", fontSize: "13px", cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={e => e.target.style.background = dark ? "#1e293b" : "#f8fafc"}
+                  onMouseLeave={e => e.target.style.background = "transparent"}
+                >
+                  🔄 New Assessment
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                    setTimeout(() => {
+                      document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+                    }, 300);
+                  }}
+                  style={{
+                    flex: 2, padding: "12px",
+                    borderRadius: "12px", border: "none",
+                    background: "linear-gradient(135deg, #15803d, #059669)",
+                    color: "#fff",
+                    fontWeight: "700", fontSize: "13px", cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={e => e.target.style.transform = "scale(1.02)"}
+                  onMouseLeave={e => e.target.style.transform = "scale(1)"}
+                >
+                  🎥 Book Zorim Care Consultation
+                </button>
+              </div>
+            )}
+
+            <p style={{ fontSize: "10px", color: colors.muted, textAlign: "center", margin: "8px 0 0 0" }}>
+              Powered by Claude Sonnet 4 · Data stays private · Not a medical diagnosis · Emergency? Call 112
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

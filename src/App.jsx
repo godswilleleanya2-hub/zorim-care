@@ -514,12 +514,10 @@ Please generate a comprehensive clinical assessment following your structured fo
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        stream: true,
+        max_tokens: 4000,
         system: ZORIM_SYSTEM_PROMPT,
         messages: [{ role: "user", content: patientSummary }],
       }),
@@ -530,29 +528,15 @@ Please generate a comprehensive clinical assessment following your structured fo
       throw new Error(`API error ${response.status}: ${errText}`);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    const data = await response.json();
+    const text = data.content?.[0]?.text;
+    if (!text) throw new Error("Empty response from AI");
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") { onDone(); return; }
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
-            onChunk(parsed.delta.text);
-          }
-        } catch { /* skip malformed lines */ }
-      }
+    // Simulate streaming by feeding text in chunks for a smooth display effect
+    const chunkSize = 30;
+    for (let i = 0; i < text.length; i += chunkSize) {
+      onChunk(text.slice(i, i + chunkSize));
+      await new Promise(r => setTimeout(r, 10));
     }
     onDone();
   } catch (err) {
